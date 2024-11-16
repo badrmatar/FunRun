@@ -79,39 +79,18 @@ serve(async (req) => {
       });
     }
 
-    if (existingUser) {
-      console.warn(`User already exists with email: ${email}`);
+    if (!existingUser) {
+      console.warn(`User does not exists with email: ${email}`);
       return new Response(
         JSON.stringify({ error: 'User already exists with this email.' }),
         { status: 409 }
       );
     }
-
-    
-    const { data, error: insertError } = await supabase
-      .from('users')
-      .insert([
-        {
-          email: email,
-          password: password, 
-          
-        },
-      ]);
-
-    if (insertError) {
-      console.error(`Supabase error while inserting user: ${insertError.message}`);
-      return new Response(JSON.stringify({ error: insertError.message }), {
-        status: 400,
-      });
-    }
-
     
     const successResponse = {
-      message: 'User registered successfully.',
-      user_id: data[0].id,
-      email: data[0].email,
+      message: 'User found successfully.',
     };
-    console.log(`User registered successfully: ${email}`);
+    console.log(`User found successfully: ${email}`);
     console.log(`Response: ${JSON.stringify(successResponse)}`);
 
     return new Response(

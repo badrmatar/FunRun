@@ -1,6 +1,9 @@
-import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
+
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../models/user_model.dart';
+import '../services/auth_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -10,10 +13,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  
-  final SupabaseClient _supabase = Supabase.instance.client;
-  String _userEmail = '';
-  String _userId = '';
+
+  final AuthService _authService = AuthService();
 
   @override
   void initState() {
@@ -22,49 +23,40 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _initializeUser() async {
-    final user = _supabase.auth.currentUser;
-    if (user != null) {
-      setState(() {
-        _userEmail = user.email ?? 'No Email';
-        _userId = user.id;
-      });
-    } else {
-      Navigator.pushReplacementNamed(context, '/login');
-    }
-  }
-
-  Future<void> _handleLogout() async {
     
-    Navigator.pushReplacementNamed(context, '/login');
+    
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = Provider.of<UserModel>(context, listen: false);
+      if (user.id == 0) {
+        
+        Navigator.pushReplacementNamed(context, '/login');
+      } else {
+        
+        
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final user = Provider.of<UserModel>(context);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Home'),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: _handleLogout,
-            tooltip: 'Logout',
+            onPressed: () async {
+              await _authService.userLogout(context);
+              Navigator.pushReplacementNamed(context, '/login');
+            },
           ),
         ],
       ),
       body: Center(
-        child: _userEmail.isNotEmpty
-            ? Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'Welcome, $_userEmail!',
-              style: const TextStyle(fontSize: 24),
-            ),
-            const SizedBox(height: 20),
-            
-          ],
-        )
-            : const CircularProgressIndicator(),
+        child: Text('Welcome, ${user.email}!'),
       ),
     );
   }

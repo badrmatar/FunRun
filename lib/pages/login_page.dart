@@ -1,6 +1,7 @@
 
 
 import 'package:flutter/material.dart';
+import 'package:year4_project/pages/home_page.dart';
 import '../services/auth_service.dart';
 
 class LoginPage extends StatefulWidget {
@@ -18,25 +19,27 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLoading = false;
 
   Future<void> _handleLogin() async {
+
     if (_formKey.currentState!.validate()) {
       setState(() {
         _isLoading = true;
       });
 
-      bool success = await _authService.userLogin(_email, _password);
+      bool success = await _authService.userLogin(context, _email, _password);
 
       setState(() {
         _isLoading = false;
       });
 
-      if (success) {
+      if (success && mounted) {
         
         Navigator.pushReplacementNamed(context, '/home');
       } else {
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Login failed. Please try again.')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Login failed. Please try again.')),
+          );
+        }
       }
     }
   }

@@ -19,11 +19,26 @@ serve(async (req: Request) => {
     return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400 })
   }
 
-  const { user_ids } = body
+  const { user_ids, league_room_id } = body
 
   
   if (!Array.isArray(user_ids) || user_ids.length === 0 || !user_ids.every(id => typeof id === 'number')) {
     return new Response(JSON.stringify({ error: 'user_ids must be a non-empty array of numbers' }), { status: 400 })
+  }
+
+  if (typeof league_room_id !== 'number') {
+    return new Response(JSON.stringify({ error: 'league_room_id must be a number' }), { status: 400 })
+  }
+
+  
+  const { data: leagueRoomData, error: leagueRoomError } = await supabase
+    .from('league_rooms')
+    .select('league_room_id')
+    .eq('league_room_id', league_room_id)
+    .single()
+
+  if (leagueRoomError || !leagueRoomData) {
+    return new Response(JSON.stringify({ error: 'Invalid league_room_id. League room not found.' }), { status: 400 })
   }
 
   
@@ -48,7 +63,7 @@ serve(async (req: Request) => {
   
   const { data: teamData, error: teamError } = await supabase
     .from('teams')
-    .insert({ team_name })
+    .insert({ team_name, league_room_id })
     .select('team_id')
     .single()
 
@@ -59,11 +74,9 @@ serve(async (req: Request) => {
   const team_id = teamData.team_id
 
   
-  
   const dateJoined = new Date().toISOString().split('T')[0]
-
   const memberships = user_ids.map(uid => ({
-    team_id: team_id,
+    team_id,
     user_id: uid,
     date_joined: dateJoined
   }))
@@ -80,6 +93,7 @@ serve(async (req: Request) => {
   return new Response(JSON.stringify({
     team_id,
     team_name,
+    league_room_id,
     members: user_ids
   }), { status: 201 })
 })

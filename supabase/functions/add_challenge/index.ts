@@ -23,9 +23,13 @@ serve(async (req: Request) => {
   }
 
   
-  const { start_time, duration, earning_points, difficulty, type } = body
-  if (!start_time || !duration || !earning_points || !difficulty || !type) {
-    return new Response(JSON.stringify({ error: 'Missing required fields' }), { status: 400 })
+  const { start_time, duration, earning_points, difficulty, length } = body
+
+  
+  if (!start_time || !duration || !earning_points || !difficulty || !length) {
+    return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+      status: 400,
+    })
   }
 
   
@@ -36,13 +40,15 @@ serve(async (req: Request) => {
       duration,        
       earning_points,  
       difficulty,      
-      type             
+      length         
     })
     .select('*') 
 
   
   if (error) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 400 })
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 400,
+    })
   }
 
   

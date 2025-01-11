@@ -118,36 +118,21 @@ serve(async (req) => {
       );
     }
 
-    
-    const { data: latestWaitingRoom, error: latestError } = await supabase
-      .from('waiting_rooms')
-      .select('waiting_room_id')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+const successResponse = {
+        message: 'Not Existing waiting room found.',
+        waiting_room_id: null
+      };
+      console.log(`Found existing waiting room: ${JSON.stringify(successResponse)}`);
 
-    if (latestError) {
-      console.error(`Supabase error while fetching latest waiting room: ${latestError.message}`);
-      return new Response(JSON.stringify({ error: latestError.message }), {
-        status: 400,
-      });
-    }
-
-    const successResponse = {
-      message: latestWaitingRoom ? 'Latest waiting room found.' : 'No waiting room found.',
-      waiting_room_id: latestWaitingRoom ? latestWaitingRoom.waiting_room_id : null
-    };
-    
-    console.log(`Response: ${JSON.stringify(successResponse)}`);
 
     return new Response(
-      JSON.stringify(successResponse),
-      {
-        headers: { 'Content-Type': 'application/json' },
-        status: 200,
-      }
-    );
+        JSON.stringify(successResponse),
+        {
+          headers: { 'Content-Type': 'application/json' },
+          status: 200,
+        }
+      );
+
 
   } catch (error) {
     console.error('Unexpected error:', error);

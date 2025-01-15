@@ -153,10 +153,42 @@ Future<bool> joinWaitingRoom(int userId, int waitingRoomId) async {
 
 
 Future<List<String>> fetchWaitingRoomUsers(int waitingRoomId) async {
-  
-  
-  
-  return ['User 1', 'User 2', 'User 3'];
+  final url =
+      'https:
+  final headers = {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer $bearerToken',
+  };
+
+  try {
+    final response = await http.post(
+      Uri.parse(url),
+      headers: headers,
+      body: jsonEncode({ 'waiting_room_id': waitingRoomId }),
+    );
+
+    if (response.statusCode == 200) {
+      
+      
+      
+      
+      
+      final List<dynamic> data = jsonDecode(response.body);
+
+      
+      final List<String> userNames = data
+          .map((item) => item['name'] as String)
+          .toList();
+
+      return userNames;
+    } else {
+      print('Error fetching waiting room users: ${response.body}');
+      return [];
+    }
+  } catch (e) {
+    print('Exception in fetchWaitingRoomUsers: $e');
+    return [];
+  }
 }
 
 class WaitingRoomScreen extends StatefulWidget {

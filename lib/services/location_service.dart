@@ -1,16 +1,42 @@
-import 'package:geolocator/geolocator.dart';
+import 'package:location/location.dart';
 
-Future<Position?> getUserLocation() async {
-  bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-  if (!serviceEnabled) return null;
+class LocationService {
+  final Location _location = Location();
 
-  LocationPermission permission = await Geolocator.checkPermission();
-  if (permission == LocationPermission.denied) {
-    permission = await Geolocator.requestPermission();
-    if (permission == LocationPermission.denied) return null;
+  
+  LocationService() {
+    
+    _location.changeSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 5,
+    );
   }
 
-  if (permission == LocationPermission.deniedForever) return null;
+  Future<LocationData?> getCurrentLocation() async {
+    
+    PermissionStatus permissionGranted = await _location.hasPermission();
+    if (permissionGranted == PermissionStatus.denied) {
+      permissionGranted = await _location.requestPermission();
+      if (permissionGranted != PermissionStatus.granted) {
+        return null; 
+      }
+    }
 
-  return await Geolocator.getCurrentPosition();
+    
+    bool serviceEnabled = await _location.serviceEnabled();
+    if (!serviceEnabled) {
+      serviceEnabled = await _location.requestService();
+      if (!serviceEnabled) {
+        return null; 
+      }
+    }
+
+    
+    return await _location.getLocation();
+  }
+
+  
+  Stream<LocationData> trackLocation() {
+    return _location.onLocationChanged;
+  }
 }

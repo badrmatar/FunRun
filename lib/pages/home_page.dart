@@ -1,9 +1,7 @@
 
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/user.dart';
-import '../services/auth_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -13,33 +11,12 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-
-  final AuthService _authService = AuthService();
-
-  @override
-  void initState() {
-    super.initState();
-    _initializeUser();
-  }
-
-  Future<void> _initializeUser() async {
-    
-    
-    
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final user = Provider.of<UserModel>(context, listen: false);
-      if (user.id == 0) {
-        
-        Navigator.pushReplacementNamed(context, '/login');
-      } else {
-        
-        
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
+    final user = Provider.of<UserModel>(context);
+    
+    
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Home'),
@@ -61,10 +38,17 @@ class _HomePageState extends State<HomePage> {
               },
               child: const Text('View Challenges'),
             ),
+            const SizedBox(height: 16),
+            
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pushNamed(context, '/active_run');
+              },
+              child: const Text('Start Run'),
+            ),
           ],
         ),
       ),
     );
   }
-
 }

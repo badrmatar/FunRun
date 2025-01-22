@@ -9,18 +9,22 @@ import 'package:provider/provider.dart';
 import '../models/user.dart';
 
 class AuthService {
-  final String userLoginFunctionUrl = 'https:
-  final String userSignupFunctionUrl = 'https:
-  final String bearer_token = dotenv.env['BEARER_TOKEN']!;
+  final String userLoginFunctionUrl =
+      'https:
+  final String userSignupFunctionUrl =
+      'https:
+  final String userLogoutFunctionUrl =
+      'https:
+  final String bearerToken = dotenv.env['BEARER_TOKEN']!;
 
   Future<bool> userLogin(BuildContext context, String email, String password) async {
     try {
-      print('Sending login request with Email: $email and Password: $password'); 
+      print('Sending login request with Email: $email'); 
       final response = await http.post(
         Uri.parse(userLoginFunctionUrl),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $bearer_token'
+          'Authorization': 'Bearer $bearerToken',
         },
         body: jsonEncode({'email': email, 'password': password}),
       );
@@ -28,7 +32,7 @@ class AuthService {
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
         print('Login successful: ${data['message']}');
-        UpdateUserModel(context, data);
+        _updateUserModel(context, data);
         return true;
       } else {
         final error = jsonDecode(response.body);
@@ -43,12 +47,12 @@ class AuthService {
 
   Future<bool> registerUser(BuildContext context, String username, String email, String password) async {
     try {
-      print('Sending registration request with Email: $email and Password: $password and name: $username'); 
+      print('Sending registration request for $email'); 
       final response = await http.post(
         Uri.parse(userSignupFunctionUrl),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $bearer_token'
+          'Authorization': 'Bearer $bearerToken',
         },
         body: jsonEncode({'username': username, 'email': email, 'password': password}),
       );
@@ -68,8 +72,35 @@ class AuthService {
     }
   }
 
-  void UpdateUserModel(context, data)
-  {
+  Future<bool> userLogout(BuildContext context, int userId) async {
+    try {
+      print('Sending logout request for user ID: $userId');
+      final response = await http.post(
+        Uri.parse(userLogoutFunctionUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $bearerToken',
+        },
+        body: jsonEncode({'user_id': userId}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('Logout successful: ${data['message']}');
+        _clearUserModel(context);
+        return true;
+      } else {
+        final error = jsonDecode(response.body);
+        print('Logout failed: ${error['error']}');
+        return false;
+      }
+    } catch (e) {
+      print('An unexpected error occurred during logout: $e');
+      return false;
+    }
+  }
+
+  void _updateUserModel(BuildContext context, Map<String, dynamic> data) {
     Provider.of<UserModel>(context, listen: false).setUser(
       id: data['id'],
       email: data['email'],
@@ -77,10 +108,7 @@ class AuthService {
     );
   }
 
-  Future<bool> userLogout(context) async {
-    
-    
+  void _clearUserModel(BuildContext context) {
     Provider.of<UserModel>(context, listen: false).clearUser();
-    return true;
   }
 }

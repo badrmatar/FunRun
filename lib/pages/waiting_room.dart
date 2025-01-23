@@ -356,11 +356,8 @@ class _WaitingRoomScreenState extends State<WaitingRoomScreen> {
 
     final success = await create_league_room(widget.userId);
     if (success) {
-      
-      
-      
-
       _waitingRoomId = null;
+
       
       final newLeagueRoomId = await getLeagueRoomId(widget.userId);
       if (newLeagueRoomId != null) {
@@ -368,11 +365,11 @@ class _WaitingRoomScreenState extends State<WaitingRoomScreen> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("League Room started!"))
+        const SnackBar(content: Text("League Room started successfully!")),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Failed to start league room."))
+        const SnackBar(content: Text("Failed to start league room.")),
       );
     }
 

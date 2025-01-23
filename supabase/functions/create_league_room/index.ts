@@ -4,7 +4,6 @@ import { createClient } from 'https:
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
 const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 serve(async (req: Request) => {
@@ -41,9 +40,10 @@ serve(async (req: Request) => {
       .maybeSingle();
 
     if (findWrError || !waitingRoomRow) {
-      return new Response(JSON.stringify({
-        error: 'No active waiting room found for this user.',
-      }), { status: 404 });
+      return new Response(
+        JSON.stringify({ error: 'No active waiting room found for this user.' }),
+        { status: 404 }
+      );
     }
 
     const waiting_room_id = waitingRoomRow.waiting_room_id;
@@ -56,18 +56,22 @@ serve(async (req: Request) => {
       .is('league_room_id', null);
 
     if (waitingUsersError || !waitingUsers || waitingUsers.length === 0) {
-      return new Response(JSON.stringify({
-        error: 'No users found in this waiting room.',
-      }), { status: 404 });
+      return new Response(
+        JSON.stringify({ error: 'No users found in this waiting room.' }),
+        { status: 404 }
+      );
     }
 
     const totalUsers = waitingUsers.length;
 
     
     if (totalUsers % 2 !== 0) {
-      return new Response(JSON.stringify({
-        error: 'The number of participants must be even to create a league room.',
-      }), { status: 400 });
+      return new Response(
+        JSON.stringify({
+          error: 'The number of participants must be even to create a league room.',
+        }),
+        { status: 400 }
+      );
     }
 
     
@@ -79,9 +83,12 @@ serve(async (req: Request) => {
       .single();
 
     if (leagueRoomError || !newLeagueRoom) {
-      return new Response(JSON.stringify({
-        error: leagueRoomError?.message || 'Failed to create a league room.',
-      }), { status: 400 });
+      return new Response(
+        JSON.stringify({
+          error: leagueRoomError?.message || 'Failed to create a league room.',
+        }),
+        { status: 400 }
+      );
     }
 
     const league_room_id = newLeagueRoom.league_room_id;
@@ -94,9 +101,10 @@ serve(async (req: Request) => {
       .is('league_room_id', null);
 
     if (updateError) {
-      return new Response(JSON.stringify({ error: updateError.message }), {
-        status: 400,
-      });
+      return new Response(
+        JSON.stringify({ error: updateError.message }),
+        { status: 400 }
+      );
     }
 
     
@@ -115,22 +123,28 @@ serve(async (req: Request) => {
       );
 
       if (createTeamError) {
-        return new Response(JSON.stringify({
-          error: `Failed to create a team: ${createTeamError.message}`,
-        }), { status: 400 });
+        console.error('Error creating team:', createTeamError);
+        return new Response(
+          JSON.stringify({ error: `Failed to create a team: ${createTeamError.message}` }),
+          { status: 400 }
+        );
       }
     }
 
     
-    return new Response(JSON.stringify({
-      message: 'League room and teams successfully created.',
-      league_room_id,
-      number_of_teams: teams.length,
-    }), { status: 201 });
+    return new Response(
+      JSON.stringify({
+        message: 'League room and teams successfully created.',
+        league_room_id,
+        number_of_teams: teams.length,
+      }),
+      { status: 200 }
+    );
   } catch (error) {
     console.error('Unexpected error:', error);
-    return new Response(JSON.stringify({
-      error: 'Internal Server Error',
-    }), { status: 500 });
+    return new Response(
+      JSON.stringify({ error: 'Internal Server Error' }),
+      { status: 500 }
+    );
   }
 });

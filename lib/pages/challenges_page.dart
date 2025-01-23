@@ -22,23 +22,21 @@ class _ChallengesPageState extends State<ChallengesPage> {
     final supabase = Supabase.instance.client;
 
     
-    final now = DateTime.now().toUtc(); 
-    final startOfDay = DateTime.utc(now.year, now.month, now.day); 
-    final endOfDay = startOfDay.add(Duration(days: 1)); 
+    final now = DateTime.now().toUtc();
+    final startOfDay = DateTime.utc(now.year, now.month, now.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
 
-    debugPrint('Fetching challenges from: $startOfDay to $endOfDay'); 
+    debugPrint('Fetching challenges from: $startOfDay to $endOfDay');
 
     try {
-      
       final response = await supabase
           .from('challenges')
-          .select('*');
-          
-          
+          .select('*')
+          .gte('start_time', startOfDay.toIso8601String())
+          .lt('start_time', endOfDay.toIso8601String());
 
-      debugPrint('Raw response: $response'); 
+      debugPrint('Raw response: $response');
 
-      
       if (response is List) {
         return response.map((item) => Challenge.fromJson(item)).toList();
       } else {

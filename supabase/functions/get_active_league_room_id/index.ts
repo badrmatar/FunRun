@@ -70,71 +70,59 @@ serve(async (req) => {
     }
 
     
-    const now = new Date();
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-
-    
-    
-    
-    
-    
-    
-
-    const { data: activeRecord, error: fetchError } = await supabase
+    const { data: waitingRoomData, error: waitingRoomError } = await supabase
       .from('waiting_rooms')
       .select(`
         waiting_room_id,
         league_room_id,
         league_rooms (
           league_room_id,
-          created_at
+          created_at,
+          ended_at
         )
       `)
       .eq('user_id', userId)
-      .not('league_room_id', 'is', null)         
-      .gte('league_rooms.created_at', sevenDaysAgo) 
+      .not('league_room_id', 'is', null)
+      .order('created_at', { ascending: false })
       .limit(1)
-      .maybeSingle();
+      .single();
 
-    if (fetchError) {
-      console.error(`Supabase error while fetching active league room: ${fetchError.message}`);
-      return new Response(JSON.stringify({ error: fetchError.message }), {
-        status: 400,
-      });
-    }
-
-    
-    if (!activeRecord) {
+    if (waitingRoomError?.code === 'PGRST116') {
       
-      const noRoomResponse = {
-        message: 'No active league room found for this user within the last 7 days.',
-        league_room_id: null,
-      };
-      console.log(`Response: ${JSON.stringify(noRoomResponse)}`);
-      return new Response(JSON.stringify(noRoomResponse), {
-        headers: { 'Content-Type': 'application/json' },
-        status: 200,
+      return new Response(JSON.stringify({
+        message: 'No active league room found.',
+        league_room_id: null
+      }), { status: 200 });
+    }
+
+    if (waitingRoomError) {
+      return new Response(JSON.stringify({ error: waitingRoomError.message }), {
+        status: 400
       });
     }
 
     
-    const successResponse = {
-      message: 'Active league room found.',
-      waiting_room_id: activeRecord.waiting_room_id,
-      league_room_id: activeRecord.league_room_id,
-      created_at: activeRecord.league_rooms.created_at,
-    };
-    console.log(`Response: ${JSON.stringify(successResponse)}`);
+    if (waitingRoomData.league_rooms.ended_at !== null) {
+      return new Response(JSON.stringify({
+        message: 'No active league room found.',
+        league_room_id: null
+      }), { status: 200 });
+    }
 
-    return new Response(JSON.stringify(successResponse), {
-      headers: { 'Content-Type': 'application/json' },
+    
+    return new Response(JSON.stringify({
+      message: 'Active league room found.',
+      league_room_id: waitingRoomData.league_room_id,
+      waiting_room_id: waitingRoomData.waiting_room_id,
+      created_at: waitingRoomData.league_rooms.created_at,
+    }), {
       status: 200,
+      headers: { 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
     console.error('Unexpected error:', error);
 
-    
     const environment = Deno.env.get('ENVIRONMENT') || 'production';
     const isDevelopment = environment === 'development';
     let errorMessage = 'Internal Server Error';

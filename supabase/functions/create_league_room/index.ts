@@ -1,7 +1,6 @@
 import { serve } from 'https:
 import { createClient } from 'https:
 
-
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
 const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -116,6 +115,7 @@ serve(async (req: Request) => {
       teams.push([shuffledUserIds[i], shuffledUserIds[i + 1]]);
     }
 
+    
     for (const team of teams) {
       const { error: createTeamError } = await supabase.functions.invoke(
         'create_team',

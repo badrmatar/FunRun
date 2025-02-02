@@ -2,17 +2,34 @@ import 'package:location/location.dart';
 
 class LocationService {
   final Location _location = Location();
+  LocationData? _lastKnownLocation;
+  Stream<LocationData>? _locationStream;
 
   
   LocationService() {
+    _initializeLocation();
+  }
+
+  Future<void> _initializeLocation() async {
     
-    _location.changeSettings(
+    await _location.changeSettings(
       accuracy: LocationAccuracy.high,
       distanceFilter: 5,
     );
+
+    
+    _locationStream = _location.onLocationChanged;
+    _locationStream?.listen((LocationData location) {
+      _lastKnownLocation = location;
+    });
   }
 
   Future<LocationData?> getCurrentLocation() async {
+    
+    if (_lastKnownLocation != null) {
+      return _lastKnownLocation;
+    }
+
     
     PermissionStatus permissionGranted = await _location.hasPermission();
     if (permissionGranted == PermissionStatus.denied) {
@@ -32,11 +49,17 @@ class LocationService {
     }
 
     
-    return await _location.getLocation();
+    _lastKnownLocation = await _location.getLocation();
+    return _lastKnownLocation;
+  }
+
+  
+  LocationData? getLastLocation() {
+    return _lastKnownLocation;
   }
 
   
   Stream<LocationData> trackLocation() {
-    return _location.onLocationChanged;
+    return _locationStream ?? _location.onLocationChanged;
   }
 }

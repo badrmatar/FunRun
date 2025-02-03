@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:location/location.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
@@ -27,10 +28,23 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
   bool _isTracking = false;
   bool _autoPaused = false;
   int _stillCounter = 0;
-  final double _pauseThreshold = 0.5;
-  final double _resumeThreshold = 1.0;
+  final double _pauseThreshold = 0.5;   
+  final double _resumeThreshold = 1.0;    
   bool _isInitializing = true;
   StreamSubscription<LocationData>? _locationSubscription;
+
+  
+  LatLng? _lastRecordedLocation;
+
+  
+  final List<LatLng> _route = [];
+  Polyline _routePolyline = Polyline(
+    polylineId: const PolylineId('route'),
+    color: Colors.orange,
+    width: 5,
+    points: [],
+  );
+  GoogleMapController? _mapController;
 
   @override
   void initState() {
@@ -43,8 +57,10 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
     _locationSubscription = _locationService.trackLocation().listen((newLocation) {
       if (mounted) {
         setState(() => _currentLocation = newLocation);
-        if (_isInitializing && newLocation.accuracy != null && newLocation.accuracy! < 20) {
-          
+        
+        if (_isInitializing &&
+            newLocation.accuracy != null &&
+            newLocation.accuracy! < 20) {
           _isInitializing = false;
           _startRun(newLocation);
         }
@@ -67,37 +83,73 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
       _distanceCovered = 0.0;
       _secondsElapsed = 0;
       _autoPaused = false;
+      _route.clear();
+      
+      if (location.latitude != null && location.longitude != null) {
+        final startPoint = LatLng(location.latitude!, location.longitude!);
+        _route.add(startPoint);
+        _routePolyline = _routePolyline.copyWith(pointsParam: _route);
+        _lastRecordedLocation = startPoint;
+      }
     });
 
+    
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!_autoPaused && mounted) {
         setState(() => _secondsElapsed++);
       }
     });
 
+    
     _locationService.trackLocation().listen((newLocation) {
       if (!_isTracking) return;
 
       final speed = (newLocation.speed ?? 0.0).clamp(0.0, double.infinity);
       _handleAutoPauseLogic(speed);
 
-      if (_currentLocation != null && !_autoPaused) {
+      
+      if (_lastRecordedLocation != null && !_autoPaused) {
         final distance = _calculateDistance(
-          _currentLocation!.latitude!,
-          _currentLocation!.longitude!,
+          _lastRecordedLocation!.latitude,
+          _lastRecordedLocation!.longitude,
           newLocation.latitude!,
           newLocation.longitude!,
         );
-
+        
         if (distance > 3.0) {
-          setState(() => _distanceCovered += distance);
+          setState(() {
+            _distanceCovered += distance;
+            
+            _lastRecordedLocation = LatLng(newLocation.latitude!, newLocation.longitude!);
+          });
         }
       }
 
-      setState(() => _currentLocation = newLocation);
+      setState(() {
+        _currentLocation = newLocation;
+        
+        if (newLocation.latitude != null && newLocation.longitude != null) {
+          final newPoint = LatLng(newLocation.latitude!, newLocation.longitude!);
+          _route.add(newPoint);
+          _routePolyline = _routePolyline.copyWith(pointsParam: _route);
+        }
+      });
+
+      
+      if (_mapController != null && newLocation.latitude != null && newLocation.longitude != null) {
+        _mapController!.animateCamera(
+          CameraUpdate.newLatLng(
+            LatLng(newLocation.latitude!, newLocation.longitude!),
+          ),
+        );
+      }
     });
   }
 
+  
+  
+  
+  
   void _handleAutoPauseLogic(double speed) {
     if (_autoPaused) {
       if (speed > _resumeThreshold) {
@@ -118,6 +170,7 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
     }
   }
 
+  
   double _calculateDistance(double startLat, double startLng, double endLat, double endLng) {
     const earthRadius = 6371000.0;
     final dLat = (endLat - startLat) * (pi / 180);
@@ -146,9 +199,6 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
     });
     _saveRunData();
   }
-
-  
-
 
   Future<void> _saveRunData() async {
     debugPrint("Run ended. Distance: $_distanceCovered meters");
@@ -302,8 +352,6 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
     }
   }
 
-
-
   String _formatTime(int seconds) {
     final minutes = seconds ~/ 60;
     final remainingSeconds = seconds % 60;
@@ -331,6 +379,7 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
   Widget build(BuildContext context) {
     final distanceKm = _distanceCovered / 1000;
 
+    
     if (_isInitializing) {
       return Scaffold(
         body: Container(
@@ -366,40 +415,84 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
       );
     }
 
+    
     return Scaffold(
       appBar: AppBar(title: const Text('Active Run')),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Time Elapsed: ${_formatTime(_secondsElapsed)}',
-              style: const TextStyle(fontSize: 20),
+      body: Stack(
+        children: [
+          
+          GoogleMap(
+            initialCameraPosition: CameraPosition(
+              target: _currentLocation != null &&
+                  _currentLocation!.latitude != null &&
+                  _currentLocation!.longitude != null
+                  ? LatLng(_currentLocation!.latitude!, _currentLocation!.longitude!)
+                  : const LatLng(37.4219999, -122.0840575),
+              zoom: 15,
             ),
-            const SizedBox(height: 16),
-            Text(
-              'Distance Covered: ${distanceKm.toStringAsFixed(2)} km',
-              style: const TextStyle(fontSize: 20),
-            ),
-            const SizedBox(height: 8),
-            if (_autoPaused)
-              const Text(
-                'Auto-Paused',
-                style: TextStyle(color: Colors.red, fontSize: 16),
+            myLocationEnabled: true,
+            myLocationButtonEnabled: true,
+            polylines: {_routePolyline},
+            onMapCreated: (controller) {
+              _mapController = controller;
+            },
+          ),
+          
+          Positioned(
+            top: 20,
+            left: 20,
+            child: Card(
+              color: Colors.white70,
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Column(
+                  children: [
+                    Text(
+                      'Time: ${_formatTime(_secondsElapsed)}',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Distance: ${distanceKm.toStringAsFixed(2)} km',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
               ),
-            const SizedBox(height: 24),
-            ElevatedButton(
+            ),
+          ),
+          
+          if (_autoPaused)
+            Positioned(
+              top: 90,
+              left: 20,
+              child: Card(
+                color: Colors.redAccent.withOpacity(0.8),
+                child: const Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: Text(
+                    'Auto-Paused',
+                    style: TextStyle(fontSize: 16, color: Colors.white),
+                  ),
+                ),
+              ),
+            ),
+          
+          Positioned(
+            bottom: 20,
+            left: MediaQuery.of(context).size.width * 0.5 - 60,
+            child: ElevatedButton(
               onPressed: _endRun,
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
               child: const Text(
                 'End Run',
                 style: TextStyle(fontSize: 18),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

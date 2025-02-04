@@ -14,7 +14,7 @@ class LocationService {
     
     await _location.changeSettings(
       accuracy: LocationAccuracy.high,
-      distanceFilter: 5,
+      distanceFilter: 15,
     );
 
     

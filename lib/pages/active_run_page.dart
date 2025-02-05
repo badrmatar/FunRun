@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:location/location.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -10,18 +10,24 @@ import 'package:provider/provider.dart';
 import '../models/user.dart';
 import '../services/location_service.dart';
 
+
 class ActiveRunPage extends StatefulWidget {
   const ActiveRunPage({Key? key}) : super(key: key);
+
 
   @override
   _ActiveRunPageState createState() => _ActiveRunPageState();
 }
 
+
 class _ActiveRunPageState extends State<ActiveRunPage> {
   final LocationService _locationService = LocationService();
-  LocationData? _startLocation;
-  LocationData? _currentLocation;
-  LocationData? _endLocation;
+
+
+  
+  Position? _startLocation;
+  Position? _currentLocation;
+  Position? _endLocation;
   double _distanceCovered = 0.0;
   int _secondsElapsed = 0;
   Timer? _timer;
@@ -29,22 +35,25 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
   bool _autoPaused = false;
   int _stillCounter = 0;
   final double _pauseThreshold = 0.5; 
-  final double _resumeThreshold = 1.0;  
+  final double _resumeThreshold = 1.0; 
   bool _isInitializing = true;
-  StreamSubscription<LocationData>? _locationSubscription;
+  StreamSubscription<Position>? _locationSubscription;
+
 
   
   LatLng? _lastRecordedLocation;
 
+
   
   final List<LatLng> _route = [];
-  Polyline _routePolyline = Polyline(
-    polylineId: const PolylineId('route'),
+  Polyline _routePolyline = const Polyline(
+    polylineId: PolylineId('route'),
     color: Colors.orange,
     width: 5,
     points: [],
   );
   GoogleMapController? _mapController;
+
 
   @override
   void initState() {
@@ -52,23 +61,36 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
     _initializeRun();
   }
 
+
   Future<void> _initializeRun() async {
     
-    _locationSubscription = _locationService.trackLocation().listen((newLocation) {
-      if (mounted) {
-        setState(() => _currentLocation = newLocation);
-        
-        if (_isInitializing &&
-            newLocation.accuracy != null &&
-            newLocation.accuracy! < 20) {
-          _isInitializing = false;
-          _startRun(newLocation);
-        }
+    final initialPosition = await _locationService.getCurrentLocation();
+    if (initialPosition != null) {
+      setState(() {
+        _currentLocation = initialPosition;
+      });
+      
+      if (initialPosition.accuracy < 20) {
+        _isInitializing = false;
+        _startRun(initialPosition);
       }
-    });
+    }
 
     
-    Timer(const Duration(seconds: 5), () {
+    _locationSubscription =
+        _locationService.trackLocation().listen((newPosition) {
+          if (mounted) {
+            setState(() => _currentLocation = newPosition);
+            
+            if (_isInitializing && newPosition.accuracy < 20) {
+              _isInitializing = false;
+              _startRun(newPosition);
+            }
+          }
+        });
+
+    
+    Timer(const Duration(seconds: 3000), () {
       if (_isInitializing && mounted && _currentLocation != null) {
         _isInitializing = false;
         _startRun(_currentLocation!);
@@ -76,22 +98,24 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
     });
   }
 
-  void _startRun(LocationData location) {
+
+
+
+  void _startRun(Position position) {
     setState(() {
-      _startLocation = location;
+      _startLocation = position;
       _isTracking = true;
       _distanceCovered = 0.0;
       _secondsElapsed = 0;
       _autoPaused = false;
       _route.clear();
       
-      if (location.latitude != null && location.longitude != null) {
-        final startPoint = LatLng(location.latitude!, location.longitude!);
-        _route.add(startPoint);
-        _routePolyline = _routePolyline.copyWith(pointsParam: _route);
-        _lastRecordedLocation = startPoint;
-      }
+      final startPoint = LatLng(position.latitude, position.longitude);
+      _route.add(startPoint);
+      _routePolyline = _routePolyline.copyWith(pointsParam: _route);
+      _lastRecordedLocation = startPoint;
     });
+
 
     
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -100,51 +124,56 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
       }
     });
 
+
     
-    _locationService.trackLocation().listen((newLocation) {
+    _locationService.trackLocation().listen((newPosition) {
       if (!_isTracking) return;
 
-      final speed = (newLocation.speed ?? 0.0).clamp(0.0, double.infinity);
+
+      final speed = (newPosition.speed).clamp(0.0, double.infinity);
       _handleAutoPauseLogic(speed);
+
 
       
       if (_lastRecordedLocation != null && !_autoPaused) {
         final distance = _calculateDistance(
           _lastRecordedLocation!.latitude,
           _lastRecordedLocation!.longitude,
-          newLocation.latitude!,
-          newLocation.longitude!,
+          newPosition.latitude,
+          newPosition.longitude,
         );
         
         if (distance > 20.0) {
           setState(() {
             _distanceCovered += distance;
             
-            _lastRecordedLocation = LatLng(newLocation.latitude!, newLocation.longitude!);
+            _lastRecordedLocation =
+                LatLng(newPosition.latitude, newPosition.longitude);
           });
         }
       }
 
+
       setState(() {
-        _currentLocation = newLocation;
+        _currentLocation = newPosition;
         
-        if (newLocation.latitude != null && newLocation.longitude != null) {
-          final newPoint = LatLng(newLocation.latitude!, newLocation.longitude!);
-          _route.add(newPoint);
-          _routePolyline = _routePolyline.copyWith(pointsParam: _route);
-        }
+        final newPoint = LatLng(newPosition.latitude, newPosition.longitude);
+        _route.add(newPoint);
+        _routePolyline = _routePolyline.copyWith(pointsParam: _route);
       });
 
+
       
-      if (_mapController != null && newLocation.latitude != null && newLocation.longitude != null) {
+      if (_mapController != null) {
         _mapController!.animateCamera(
           CameraUpdate.newLatLng(
-            LatLng(newLocation.latitude!, newLocation.longitude!),
+            LatLng(newPosition.latitude, newPosition.longitude),
           ),
         );
       }
     });
   }
+
 
   
   
@@ -170,8 +199,10 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
     }
   }
 
+
   
-  double _calculateDistance(double startLat, double startLng, double endLat, double endLng) {
+  double _calculateDistance(
+      double startLat, double startLng, double endLat, double endLng) {
     const earthRadius = 6371000.0;
     final dLat = (endLat - startLat) * (pi / 180);
     final dLng = (endLng - startLng) * (pi / 180);
@@ -184,6 +215,7 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
     return earthRadius * c;
   }
 
+
   void _endRun() {
     if (_currentLocation == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -191,6 +223,7 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
       );
       return;
     }
+
 
     _timer?.cancel();
     setState(() {
@@ -200,15 +233,19 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
     _saveRunData();
   }
 
+
   Future<void> _saveRunData() async {
     debugPrint("Run ended. Distance: $_distanceCovered meters");
+
 
     try {
       final user = Provider.of<UserModel>(context, listen: false);
 
+
       debugPrint("Debug -> user.id = ${user.id}");
       debugPrint("Debug -> _startLocation = $_startLocation");
       debugPrint("Debug -> _endLocation = $_endLocation");
+
 
       if (user.id == 0 || _startLocation == null || _endLocation == null) {
         debugPrint("Missing required data for saving");
@@ -220,21 +257,27 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
         return;
       }
 
+
       final distance = double.parse(_distanceCovered.toStringAsFixed(2));
 
-      final startTime = DateTime.fromMillisecondsSinceEpoch(
-        _startLocation!.time!.toInt(),
-      ).toUtc().toIso8601String();
-
-      final endTime = DateTime.fromMillisecondsSinceEpoch(
-        _endLocation!.time!.toInt(),
-      ).toUtc().toIso8601String();
 
       
-      final routeJson = _route.map((point) => {
+      final startTime = (_startLocation!.timestamp ?? DateTime.now())
+          .toUtc()
+          .toIso8601String();
+      final endTime = (_endLocation!.timestamp ?? DateTime.now())
+          .toUtc()
+          .toIso8601String();
+
+
+      
+      final routeJson = _route
+          .map((point) => {
         'latitude': point.latitude,
         'longitude': point.longitude,
-      }).toList();
+      })
+          .toList();
+
 
       final requestBody = jsonEncode({
         'user_id': user.id,
@@ -248,10 +291,13 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
         'route': routeJson, 
       });
 
+
       debugPrint("Saving run data with body: $requestBody");
 
+
       final response = await http.post(
-        Uri.parse('${dotenv.env['SUPABASE_URL']}/functions/v1/create_user_contribution'),
+        Uri.parse(
+            '${dotenv.env['SUPABASE_URL']}/functions/v1/create_user_contribution'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${dotenv.env['BEARER_TOKEN']}',
@@ -259,17 +305,22 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
         body: requestBody,
       );
 
+
       if (response.statusCode == 201) {
         debugPrint("Successfully saved run data");
         debugPrint("Server response: ${response.body}");
 
+
         final responseData = jsonDecode(response.body);
         final data = responseData['data'];
+
 
         if (data != null) {
           bool hasChallenge = false;
 
-          if (data['total_distance_km'] != null && data['required_distance_km'] != null) {
+
+          if (data['total_distance_km'] != null &&
+              data['required_distance_km'] != null) {
             hasChallenge = true;
             if (data['challenge_completed'] == true) {
               if (mounted) {
@@ -323,12 +374,14 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Run saved successfully! Distance: ${(distance / 1000).toStringAsFixed(2)} km'),
+                  content: Text(
+                      'Run saved successfully! Distance: ${(distance / 1000).toStringAsFixed(2)} km'),
                   duration: const Duration(seconds: 3),
                 ),
               );
             }
           }
+
 
           if (hasChallenge) {
             Future.delayed(const Duration(seconds: 2), () {
@@ -357,11 +410,13 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
     }
   }
 
+
   String _formatTime(int seconds) {
     final minutes = seconds ~/ 60;
     final remainingSeconds = seconds % 60;
     return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
   }
+
 
   void _showLocationError() {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -373,6 +428,7 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
     Navigator.pop(context);
   }
 
+
   @override
   void dispose() {
     _timer?.cancel();
@@ -380,10 +436,12 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
     super.dispose();
   }
 
+
   @override
   Widget build(BuildContext context) {
     final distanceKm = _distanceCovered / 1000;
-    print('Accuracy: ${_currentLocation!.accuracy?.toStringAsFixed(1) ?? "Unknown"} meters');
+    debugPrint(
+        'Accuracy: ${_currentLocation?.accuracy.toStringAsFixed(1) ?? "Unknown"} meters');
     if (_isInitializing) {
       return Scaffold(
         body: Container(
@@ -408,7 +466,7 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
                   Padding(
                     padding: const EdgeInsets.only(top: 16.0),
                     child: Text(
-                      'Accuracy: ${_currentLocation!.accuracy?.toStringAsFixed(1) ?? "Unknown"} meters',
+                      'Accuracy: ${_currentLocation!.accuracy.toStringAsFixed(1)} meters',
                       style: const TextStyle(color: Colors.white),
                     ),
                   ),
@@ -419,16 +477,18 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
       );
     }
 
+
     return Scaffold(
       appBar: AppBar(title: const Text('Active Run')),
       body: Stack(
         children: [
           GoogleMap(
             initialCameraPosition: CameraPosition(
-              target: _currentLocation != null &&
-                  _currentLocation!.latitude != null &&
-                  _currentLocation!.longitude != null
-                  ? LatLng(_currentLocation!.latitude!, _currentLocation!.longitude!)
+              target: _currentLocation != null
+                  ? LatLng(
+                _currentLocation!.latitude,
+                _currentLocation!.longitude,
+              )
                   : const LatLng(37.4219999, -122.0840575),
               zoom: 15,
             ),
@@ -450,12 +510,14 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
                   children: [
                     Text(
                       'Time: ${_formatTime(_secondsElapsed)}',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Distance: ${distanceKm.toStringAsFixed(2)} km',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
@@ -483,7 +545,8 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
             child: ElevatedButton(
               onPressed: _endRun,
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
               child: const Text(
                 'End Run',
@@ -496,3 +559,4 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
     );
   }
 }
+

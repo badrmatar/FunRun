@@ -85,19 +85,30 @@ class _LeagueRoomPageState extends State<LeagueRoomPage> {
         final pointsList = List<Map<String, dynamic>>.from(pointsData['data'] ?? []);
         final membersList = List<Map<String, dynamic>>.from(membersData['teams'] ?? []);
 
-        
-        final List<Map<String, dynamic>> teamsWithPoints = pointsList.map((pointsTeam) {
-          
-          final memberTeam = membersList.firstWhere(
-                (memberTeam) => memberTeam['team_id'] == pointsTeam['team_id'],
-            orElse: () => {'members': []},
-          );
+        List<Map<String, dynamic>> teamsWithPoints = [];
 
-          return {
-            ...pointsTeam,
-            'members': memberTeam['members'] ?? [],
-          };
-        }).toList();
+        
+        if (pointsList.isEmpty) {
+          teamsWithPoints = membersList.map((team) {
+            return {
+              ...team,
+              'total_points': 0,
+              'completed_challenges': 0,
+            };
+          }).toList();
+        } else {
+          teamsWithPoints = pointsList.map((pointsTeam) {
+            
+            final memberTeam = membersList.firstWhere(
+                  (memberTeam) => memberTeam['team_id'] == pointsTeam['team_id'],
+              orElse: () => {'members': []},
+            );
+            return {
+              ...pointsTeam,
+              'members': memberTeam['members'] ?? [],
+            };
+          }).toList();
+        }
 
         setState(() {
           _leagueRoomId = leagueRoomId;
@@ -209,10 +220,11 @@ class _LeagueRoomPageState extends State<LeagueRoomPage> {
           ? const Center(child: CircularProgressIndicator())
           : _leagueRoomId == null
           ? const Center(
-          child: Text(
-            "No active league room found.",
-            style: TextStyle(fontSize: 18),
-          ))
+        child: Text(
+          "No active league room found.",
+          style: TextStyle(fontSize: 18),
+        ),
+      )
           : _buildLeagueRoomDetails(),
     );
   }
@@ -290,10 +302,9 @@ class _LeagueRoomPageState extends State<LeagueRoomPage> {
               final bool isTopThree = index < 3;
               
               final members = (team['members'] as List?)
-                  ?.map((m) => m['name']?.toString() ?? '')
+                  ?.map((m) => m['users']?['name']?.toString() ?? '')
                   .where((name) => name.isNotEmpty)
-                  .toList() ??
-                  [];
+                  .toList() ?? [];
               final memberNames = members.join(', ');
 
               return Card(

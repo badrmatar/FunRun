@@ -10,50 +10,67 @@ import 'package:provider/provider.dart';
 import '../models/user.dart';
 import '../services/location_service.dart';
 
-
 class ActiveRunPage extends StatefulWidget {
-  const ActiveRunPage({Key? key}) : super(key: key);
+  final String journeyType;
+  final int challengeId;
 
+  const ActiveRunPage({
+    Key? key,
+    required this.journeyType,
+    required this.challengeId,
+  }) : super(key: key);
 
   @override
-  _ActiveRunPageState createState() => _ActiveRunPageState();
+  ActiveRunPageState createState() => ActiveRunPageState();
 }
 
-
-class _ActiveRunPageState extends State<ActiveRunPage> {
-  final LocationService _locationService = LocationService();
-
-
+class ActiveRunPageState extends State<ActiveRunPage> {
   
+  @protected
+  final LocationService locationService = LocationService();
+
+  @protected
+  Position? get currentLocation => _currentLocation;
+
+  @protected
   Position? _startLocation;
+  @protected
   Position? _currentLocation;
+  @protected
   Position? _endLocation;
+  @protected
   double _distanceCovered = 0.0;
+  @protected
   int _secondsElapsed = 0;
+  @protected
   Timer? _timer;
+  @protected
   bool _isTracking = false;
+  @protected
   bool _autoPaused = false;
-  int _stillCounter = 0;
-  final double _pauseThreshold = 0.5; 
-  final double _resumeThreshold = 1.0; 
+  @protected
   bool _isInitializing = true;
+  @protected
   StreamSubscription<Position>? _locationSubscription;
 
-
   
-  LatLng? _lastRecordedLocation;
-
-
-  
+  @protected
   final List<LatLng> _route = [];
+  @protected
   Polyline _routePolyline = const Polyline(
     polylineId: PolylineId('route'),
     color: Colors.orange,
     width: 5,
     points: [],
   );
+  @protected
   GoogleMapController? _mapController;
 
+  
+  int _stillCounter = 0;
+  final double _pauseThreshold = 0.5;
+  final double _resumeThreshold = 1.0;
+  LatLng? _lastRecordedLocation;
 
   @override
   void initState() {
@@ -61,35 +78,28 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
     _initializeRun();
   }
 
-
   Future<void> _initializeRun() async {
-    
-    final initialPosition = await _locationService.getCurrentLocation();
+    final initialPosition = await locationService.getCurrentLocation();
     if (initialPosition != null) {
       setState(() {
         _currentLocation = initialPosition;
       });
-      
       if (initialPosition.accuracy < 20) {
         _isInitializing = false;
         _startRun(initialPosition);
       }
     }
 
-    
-    _locationSubscription =
-        _locationService.trackLocation().listen((newPosition) {
-          if (mounted) {
-            setState(() => _currentLocation = newPosition);
-            
-            if (_isInitializing && newPosition.accuracy < 20) {
-              _isInitializing = false;
-              _startRun(newPosition);
-            }
-          }
-        });
+    _locationSubscription = locationService.trackLocation().listen((newPosition) {
+      if (mounted) {
+        setState(() => _currentLocation = newPosition);
+        if (_isInitializing && newPosition.accuracy < 20) {
+          _isInitializing = false;
+          _startRun(newPosition);
+        }
+      }
+    });
 
-    
     Timer(const Duration(seconds: 3000), () {
       if (_isInitializing && mounted && _currentLocation != null) {
         _isInitializing = false;
@@ -98,9 +108,7 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
     });
   }
 
-
-
-
+  @protected
   void _startRun(Position position) {
     setState(() {
       _startLocation = position;
@@ -109,32 +117,25 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
       _secondsElapsed = 0;
       _autoPaused = false;
       _route.clear();
-      
+
       final startPoint = LatLng(position.latitude, position.longitude);
       _route.add(startPoint);
       _routePolyline = _routePolyline.copyWith(pointsParam: _route);
       _lastRecordedLocation = startPoint;
     });
 
-
-    
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!_autoPaused && mounted) {
         setState(() => _secondsElapsed++);
       }
     });
 
-
-    
-    _locationService.trackLocation().listen((newPosition) {
+    locationService.trackLocation().listen((newPosition) {
       if (!_isTracking) return;
-
 
       final speed = (newPosition.speed).clamp(0.0, double.infinity);
       _handleAutoPauseLogic(speed);
 
-
-      
       if (_lastRecordedLocation != null && !_autoPaused) {
         final distance = _calculateDistance(
           _lastRecordedLocation!.latitude,
@@ -142,43 +143,30 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
           newPosition.latitude,
           newPosition.longitude,
         );
-        
+
         if (distance > 20.0) {
           setState(() {
             _distanceCovered += distance;
-            
-            _lastRecordedLocation =
-                LatLng(newPosition.latitude, newPosition.longitude);
+            _lastRecordedLocation = LatLng(newPosition.latitude, newPosition.longitude);
           });
         }
       }
 
-
       setState(() {
         _currentLocation = newPosition;
-        
         final newPoint = LatLng(newPosition.latitude, newPosition.longitude);
         _route.add(newPoint);
         _routePolyline = _routePolyline.copyWith(pointsParam: _route);
       });
 
-
-      
-      if (_mapController != null) {
-        _mapController!.animateCamera(
-          CameraUpdate.newLatLng(
-            LatLng(newPosition.latitude, newPosition.longitude),
-          ),
-        );
-      }
+      _mapController?.animateCamera(
+        CameraUpdate.newLatLng(
+          LatLng(newPosition.latitude, newPosition.longitude),
+        ),
+      );
     });
   }
 
-
-  
-  
-  
-  
   void _handleAutoPauseLogic(double speed) {
     if (_autoPaused) {
       if (speed > _resumeThreshold) {
@@ -199,10 +187,7 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
     }
   }
 
-
-  
-  double _calculateDistance(
-      double startLat, double startLng, double endLat, double endLng) {
+  double _calculateDistance(double startLat, double startLng, double endLat, double endLng) {
     const earthRadius = 6371000.0;
     final dLat = (endLat - startLat) * (pi / 180);
     final dLng = (endLng - startLng) * (pi / 180);
@@ -215,15 +200,14 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
     return earthRadius * c;
   }
 
-
-  void _endRun() {
+  @protected
+  void endRun() {
     if (_currentLocation == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Cannot end run without valid location')),
       );
       return;
     }
-
 
     _timer?.cancel();
     setState(() {
@@ -233,22 +217,11 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
     _saveRunData();
   }
 
-
   Future<void> _saveRunData() async {
-    debugPrint("Run ended. Distance: $_distanceCovered meters");
-
-
     try {
       final user = Provider.of<UserModel>(context, listen: false);
 
-
-      debugPrint("Debug -> user.id = ${user.id}");
-      debugPrint("Debug -> _startLocation = $_startLocation");
-      debugPrint("Debug -> _endLocation = $_endLocation");
-
-
       if (user.id == 0 || _startLocation == null || _endLocation == null) {
-        debugPrint("Missing required data for saving");
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Missing required data to save run")),
@@ -257,27 +230,14 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
         return;
       }
 
-
       final distance = double.parse(_distanceCovered.toStringAsFixed(2));
+      final startTime = (_startLocation!.timestamp ?? DateTime.now()).toUtc().toIso8601String();
+      final endTime = (_endLocation!.timestamp ?? DateTime.now()).toUtc().toIso8601String();
 
-
-      
-      final startTime = (_startLocation!.timestamp ?? DateTime.now())
-          .toUtc()
-          .toIso8601String();
-      final endTime = (_endLocation!.timestamp ?? DateTime.now())
-          .toUtc()
-          .toIso8601String();
-
-
-      
-      final routeJson = _route
-          .map((point) => {
+      final routeJson = _route.map((point) => {
         'latitude': point.latitude,
         'longitude': point.longitude,
-      })
-          .toList();
-
+      }).toList();
 
       final requestBody = jsonEncode({
         'user_id': user.id,
@@ -288,16 +248,12 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
         'end_latitude': _endLocation!.latitude,
         'end_longitude': _endLocation!.longitude,
         'distance_covered': distance,
-        'route': routeJson, 
+        'route': routeJson,
+        'journey_type': widget.journeyType,
       });
 
-
-      debugPrint("Saving run data with body: $requestBody");
-
-
       final response = await http.post(
-        Uri.parse(
-            '${dotenv.env['SUPABASE_URL']}/functions/v1/create_user_contribution'),
+        Uri.parse('${dotenv.env['SUPABASE_URL']}/functions/v1/create_user_contribution'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${dotenv.env['BEARER_TOKEN']}',
@@ -305,83 +261,19 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
         body: requestBody,
       );
 
-
       if (response.statusCode == 201) {
-        debugPrint("Successfully saved run data");
-        debugPrint("Server response: ${response.body}");
-
-
         final responseData = jsonDecode(response.body);
         final data = responseData['data'];
-
 
         if (data != null) {
           bool hasChallenge = false;
 
-
-          if (data['total_distance_km'] != null &&
-              data['required_distance_km'] != null) {
+          if (data['total_distance_km'] != null && data['required_distance_km'] != null) {
             hasChallenge = true;
-            if (data['challenge_completed'] == true) {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          '🎉 Challenge Completed! 🎉',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Team Total: ${data['total_distance_km'].toStringAsFixed(2)} km',
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                      ],
-                    ),
-                    duration: const Duration(seconds: 5),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              }
-            } else {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Run saved successfully!'),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Team Progress: ${data['total_distance_km'].toStringAsFixed(2)}/${data['required_distance_km']} km',
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                      ],
-                    ),
-                    duration: const Duration(seconds: 4),
-                  ),
-                );
-              }
-            }
+            _showChallengeStatus(data);
           } else {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                      'Run saved successfully! Distance: ${(distance / 1000).toStringAsFixed(2)} km'),
-                  duration: const Duration(seconds: 3),
-                ),
-              );
-            }
+            _showRunSaved(distance);
           }
-
 
           if (hasChallenge) {
             Future.delayed(const Duration(seconds: 2), () {
@@ -392,8 +284,6 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
           }
         }
       } else {
-        debugPrint("Failed to save run: ${response.statusCode}");
-        debugPrint("Error details: ${response.body}");
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text("Failed to save run: ${response.body}")),
@@ -401,7 +291,6 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
         }
       }
     } catch (e) {
-      debugPrint("Error saving run data: ${e.toString()}");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("An error occurred: ${e.toString()}")),
@@ -410,24 +299,66 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
     }
   }
 
+  void _showChallengeStatus(Map<String, dynamic> data) {
+    if (!mounted) return;
+
+    if (data['challenge_completed'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '🎉 Challenge Completed! 🎉',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Team Total: ${data['total_distance_km'].toStringAsFixed(2)} km',
+              style: const TextStyle(fontSize: 14),
+            ),
+          ],
+        ),
+        duration: const Duration(seconds: 5),
+        backgroundColor: Colors.green,
+      ));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Run saved successfully!'),
+            const SizedBox(height: 4),
+            Text(
+              'Team Progress: ${data['total_distance_km'].toStringAsFixed(2)}/${data['required_distance_km']} km',
+              style: const TextStyle(fontSize: 14),
+            ),
+          ],
+        ),
+        duration: const Duration(seconds: 4),
+      ));
+    }
+  }
+
+  void _showRunSaved(double distance) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+            'Run saved successfully! Distance: ${(distance / 1000).toStringAsFixed(2)} km'
+        ),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
 
   String _formatTime(int seconds) {
     final minutes = seconds ~/ 60;
     final remainingSeconds = seconds % 60;
     return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
   }
-
-
-  void _showLocationError() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Enable location services to track your run"),
-        duration: Duration(seconds: 5),
-      ),
-    );
-    Navigator.pop(context);
-  }
-
 
   @override
   void dispose() {
@@ -436,47 +367,13 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
     super.dispose();
   }
 
-
   @override
   Widget build(BuildContext context) {
     final distanceKm = _distanceCovered / 1000;
-    debugPrint(
-        'Accuracy: ${_currentLocation?.accuracy.toStringAsFixed(1) ?? "Unknown"} meters');
-    if (_isInitializing) {
-      return Scaffold(
-        body: Container(
-          color: Colors.black87,
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text(
-                  'Waiting for GPS signal...',
-                  style: TextStyle(
-                    fontSize: 24,
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                CircularProgressIndicator(
-                  color: _currentLocation != null ? Colors.green : Colors.white,
-                ),
-                if (_currentLocation != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 16.0),
-                    child: Text(
-                      'Accuracy: ${_currentLocation!.accuracy.toStringAsFixed(1)} meters',
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
 
+    if (_isInitializing) {
+      return _buildInitializingScreen();
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Active Run')),
@@ -485,78 +382,115 @@ class _ActiveRunPageState extends State<ActiveRunPage> {
           GoogleMap(
             initialCameraPosition: CameraPosition(
               target: _currentLocation != null
-                  ? LatLng(
-                _currentLocation!.latitude,
-                _currentLocation!.longitude,
-              )
+                  ? LatLng(_currentLocation!.latitude, _currentLocation!.longitude)
                   : const LatLng(37.4219999, -122.0840575),
               zoom: 15,
             ),
             myLocationEnabled: true,
             myLocationButtonEnabled: true,
             polylines: {_routePolyline},
-            onMapCreated: (controller) {
-              _mapController = controller;
-            },
+            onMapCreated: (controller) => _mapController = controller,
           ),
-          Positioned(
-            top: 20,
-            left: 20,
-            child: Card(
-              color: Colors.white70,
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Column(
-                  children: [
-                    Text(
-                      'Time: ${_formatTime(_secondsElapsed)}',
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Distance: ${distanceKm.toStringAsFixed(2)} km',
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          if (_autoPaused)
-            Positioned(
-              top: 90,
-              left: 20,
-              child: Card(
-                color: Colors.redAccent.withOpacity(0.8),
-                child: const Padding(
-                  padding: EdgeInsets.all(8.0),
-                  child: Text(
-                    'Auto-Paused',
-                    style: TextStyle(fontSize: 16, color: Colors.white),
-                  ),
-                ),
-              ),
-            ),
-          Positioned(
-            bottom: 20,
-            left: MediaQuery.of(context).size.width * 0.5 - 60,
-            child: ElevatedButton(
-              onPressed: _endRun,
-              style: ElevatedButton.styleFrom(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
-              child: const Text(
-                'End Run',
-                style: TextStyle(fontSize: 18),
-              ),
-            ),
-          ),
+          _buildMetricsCard(distanceKm),
+          if (_autoPaused) _buildAutoPausedCard(),
+          _buildEndRunButton(),
         ],
       ),
     );
   }
-}
 
+  Widget _buildInitializingScreen() {
+    return Scaffold(
+      body: Container(
+        color: Colors.black87,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                'Waiting for GPS signal...',
+                style: TextStyle(
+                  fontSize: 24,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 20),
+              CircularProgressIndicator(
+                color: _currentLocation != null ? Colors.green : Colors.white,
+              ),
+              if (_currentLocation != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 16.0),
+                  child: Text(
+                    'Accuracy: ${_currentLocation!.accuracy.toStringAsFixed(1)} meters',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetricsCard(double distanceKm) {
+    return Positioned(
+      top: 20,
+      left: 20,
+      child: Card(
+        color: Colors.white70,
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Column(
+            children: [
+              Text(
+                'Time: ${_formatTime(_secondsElapsed)}',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Distance: ${distanceKm.toStringAsFixed(2)} km',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAutoPausedCard() {
+    return Positioned(
+      top: 90,
+      left: 20,
+      child: Card(
+        color: Colors.redAccent.withOpacity(0.8),
+        child: const Padding(
+          padding: EdgeInsets.all(8.0),
+          child: Text(
+            'Auto-Paused',
+            style: TextStyle(fontSize: 16, color: Colors.white),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEndRunButton() {
+    return Positioned(
+      bottom: 20,
+      left: MediaQuery.of(context).size.width * 0.5 - 60,
+      child: ElevatedButton(
+        onPressed: endRun,
+        style: ElevatedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        ),
+        child: const Text(
+          'End Run',
+          style: TextStyle(fontSize: 18),
+        ),
+      ),
+    );
+  }
+}

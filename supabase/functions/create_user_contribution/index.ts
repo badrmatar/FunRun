@@ -31,15 +31,16 @@ serve(async (req: Request) => {
       end_latitude,
       end_longitude,
       distance_covered,
-      route  
+      route,  
+      journey_type, 
     } = body;
 
     const validationErrors = [];
     if (typeof user_id !== 'number') validationErrors.push('user_id must be a number');
     if (typeof start_time !== 'string') validationErrors.push('start_time must be a string');
     if (typeof distance_covered !== 'number') validationErrors.push('distance_covered must be a number');
-    
     if (!Array.isArray(route)) validationErrors.push('route must be an array');
+    
 
     if (validationErrors.length > 0) {
       return new Response(
@@ -47,6 +48,11 @@ serve(async (req: Request) => {
         { status: 400 }
       );
     }
+
+    
+    const journeyType = (typeof journey_type === 'string' && (journey_type === 'duo' || journey_type === 'solo'))
+      ? journey_type
+      : 'solo';
 
     
     const { data: teamMembership, error: teamError } = await supabase
@@ -101,6 +107,7 @@ serve(async (req: Request) => {
         end_longitude,
         distance_covered,
         route, 
+        journey_type: journeyType, 
         active: false,
         contribution_details: `Distance covered: ${distance_covered}m`
       })

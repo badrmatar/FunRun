@@ -117,15 +117,30 @@ class _ChallengesPageState extends State<ChallengesPage> {
   Future<void> _handleChallengeAction(Challenge challenge, dynamic activeTeamChallenge, BuildContext context) async {
     if (activeTeamChallenge != null) {
       
-      Navigator.pushNamed(context, '/active_run');
+      Navigator.pushNamed(
+          context,
+          '/journey_type',
+          arguments: {
+            'challenge_id': challenge.challengeId,
+            'team_challenge_id': activeTeamChallenge['team_challenge_id']
+          }
+      );
       return;
     }
 
     
-    await _assignChallengeToTeam(challenge.challengeId, context);
+    final success = await _assignChallengeToTeam(challenge.challengeId, context);
+    if (success) {
+      
+      Navigator.pushNamed(
+          context,
+          '/journey_type',
+          arguments: {'challenge_id': challenge.challengeId}
+      );
+    }
   }
 
-  Future<void> _assignChallengeToTeam(int challengeId, BuildContext context) async {
+  Future<bool> _assignChallengeToTeam(int challengeId, BuildContext context) async {
     final user = Provider.of<UserModel>(context, listen: false);
     final url = '${dotenv.env['SUPABASE_URL']}/functions/v1/assign_challenge_to_team';
 
@@ -146,17 +161,19 @@ class _ChallengesPageState extends State<ChallengesPage> {
         setState(() {
           _challengesData = _fetchChallengesAndTeamStatus();
         });
-        Navigator.pushNamed(context, '/active_run');
+        return true;
       } else {
         final errorData = jsonDecode(response.body);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(errorData['error'] ?? 'Failed to start challenge')),
         );
+        return false;
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e')),
       );
+      return false;
     }
   }
 
@@ -189,7 +206,7 @@ class _ChallengesPageState extends State<ChallengesPage> {
               final isActiveChallenge = activeTeamChallenge != null &&
                   activeTeamChallenge['challenge_id'] == challenge.challengeId;
               final totalDistance = isActiveChallenge
-                  ? (activeTeamChallenge['total_distance'] as double) / 1000 
+                  ? (activeTeamChallenge['total_distance'] as double) / 1000
                   : 0.0;
 
               return Card(

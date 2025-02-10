@@ -33,8 +33,8 @@ serve(async (req: Request) => {
     .insert({
       team_id: team_id,
       challenge_id: challenge_id,
-      bonus: false,        
-      iscompleted: false   
+      multiplier: 1,
+      iscompleted: false
     })
     .select()
 

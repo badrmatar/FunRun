@@ -9,9 +9,13 @@ import 'package:year4_project/pages/signup_page.dart';
 import 'package:year4_project/pages/waiting_room.dart';
 import 'package:year4_project/pages/challenges_page.dart';
 import 'package:year4_project/pages/active_run_page.dart';
+import 'package:year4_project/pages/duo_active_run_page.dart';
 import 'package:year4_project/pages/league_room_page.dart';
-import 'services/team_service.dart';
 import 'package:year4_project/pages/history_page.dart';
+import 'package:year4_project/pages/journey_type_page.dart';
+import 'package:year4_project/pages/duo_waiting_room_page.dart';
+import 'package:year4_project/services/team_service.dart';
+
 Future<void> initSupabase() async {
   await Supabase.initialize(
     url: dotenv.env['SUPABASE_URL']!,
@@ -44,7 +48,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Running App',
       debugShowCheckedModeBanner: false,
-      initialRoute: '/login', 
+      initialRoute: '/login',
       routes: {
         '/': (context) => const HomePage(),
         '/home': (context) => const HomePage(),
@@ -52,24 +56,38 @@ class MyApp extends StatelessWidget {
         '/signup': (context) => const SignUpPage(),
         '/waiting_room': (context) => WaitingRoomScreen(userId: user.id),
         '/challenges': (context) => const ChallengesPage(),
-        '/active_run': (context) => ActiveRunPage(),
+        '/journey_type': (context) => const JourneyTypePage(),
         
+        '/duo_waiting_room': (context) {
+          final args =
+          ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+          return DuoWaitingRoom(teamChallengeId: args['team_challenge_id'] as int);
+        },
+        '/active_run': (context) {
+          final args =
+          ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+          
+          if (args['journey_type'] == 'duo') {
+            return DuoActiveRunPage(challengeId: args['team_challenge_id'] as int);
+          }
+          
+          return ActiveRunPage(
+            journeyType: 'solo',
+            challengeId: args['challenge_id'] as int,
+          );
+        },
         '/league_room': (context) => LeagueRoomPage(userId: user.id),
         '/history': (context) => const HistoryPage(),
       },
     );
   }
 
-  
   Future<void> _checkUserTeam(UserModel user) async {
     if (user.id == 0) {
-      
       return;
     }
-
     final teamService = TeamService();
     final teamId = await teamService.fetchUserTeamId(user.id);
-
     if (teamId != null) {
       print('User ${user.id} belongs to team ID: $teamId');
     } else {

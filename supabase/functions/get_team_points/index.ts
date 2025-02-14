@@ -1,5 +1,3 @@
-
-
 import { serve } from 'https:
 import { createClient } from 'https:
 
@@ -10,7 +8,10 @@ const supabase = createClient(
 
 serve(async (req) => {
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 });
+    return new Response(
+      JSON.stringify({ error: 'Method not allowed' }),
+      { status: 405 }
+    );
   }
 
   try {
@@ -18,10 +19,12 @@ serve(async (req) => {
     console.log('Getting points for league room:', league_room_id);
 
     
+    
     const { data: teamChallenges, error: challengesError } = await supabase
       .from('team_challenges')
       .select(`
         team_id,
+        multiplier,
         teams!inner (
           team_id,
           team_name,
@@ -37,14 +40,19 @@ serve(async (req) => {
 
     if (challengesError) {
       console.error('Error fetching team challenges:', challengesError);
-      return new Response(JSON.stringify({ error: challengesError.message }), { status: 400 });
+      return new Response(
+        JSON.stringify({ error: challengesError.message }),
+        { status: 400 }
+      );
     }
 
     
     const teamPoints = new Map();
     teamChallenges.forEach(tc => {
       const teamId = tc.team_id;
-      const points = tc.challenges.earning_points || 0;
+      const basePoints = tc.challenges.earning_points || 0;
+      const multiplier = tc.multiplier || 1;
+      const points = basePoints * multiplier;
       const teamName = tc.teams.team_name;
 
       if (!teamPoints.has(teamId)) {

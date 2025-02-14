@@ -99,7 +99,7 @@ serve(async (req: Request) => {
     
     const { data: activeChallenge, error: challengeError } = await supabase
       .from('team_challenges')
-      .select('team_challenge_id')
+      .select('team_challenge_id, challenge_id, challenges (length)')
       .eq('team_id', teamMembership.team_id)
       .eq('iscompleted', false)
       .order('team_challenge_id', { ascending: false })
@@ -198,9 +198,10 @@ serve(async (req: Request) => {
 
     if (totalDistanceInKm >= requiredDistance) {
       
+      const now = new Date();
       const { error: updateError } = await supabase
         .from('team_challenges')
-        .update({ iscompleted: true })
+        .update({ iscompleted: true, completed_at: now.toISOString() })
         .eq('team_challenge_id', team_challenge_id);
 
       if (updateError) {
@@ -213,6 +214,66 @@ serve(async (req: Request) => {
         );
       }
       challengeCompleted = true;
+
+      
+      
+      const { data: teamData, error: teamDataError } = await supabase
+        .from('teams')
+        .select('streak_count, last_completed_date')
+        .eq('team_id', teamMembership.team_id)
+        .single();
+
+      if (teamDataError || !teamData) {
+        console.error('Error fetching team streak info:', teamDataError);
+      } else {
+        let { streak_count, last_completed_date } = teamData;
+        let newStreakCount = 1; 
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+
+        if (last_completed_date) {
+          const lastDate = new Date(last_completed_date);
+          if (
+            lastDate.getFullYear() === yesterday.getFullYear() &&
+            lastDate.getMonth() === yesterday.getMonth() &&
+            lastDate.getDate() === yesterday.getDate()
+          ) {
+            newStreakCount = streak_count + 1;
+          }
+        }
+
+        let bonus = 0;
+        if (newStreakCount >= 3) {
+          bonus = 50;
+          
+          newStreakCount = 0;
+        }
+
+        
+        const { error: updateTeamError } = await supabase
+          .from('teams')
+          .update({
+            streak_count: newStreakCount,
+            last_completed_date: now.toISOString().split('T')[0], 
+          })
+          .eq('team_id', teamMembership.team_id);
+
+        if (updateTeamError) {
+          console.error('Error updating team streak info:', updateTeamError);
+        }
+
+        
+        if (bonus > 0) {
+          const { error: bonusError } = await supabase
+            .from('team_challenges')
+            .update({ bonus_points: bonus })
+            .eq('team_challenge_id', team_challenge_id);
+          if (bonusError) {
+            console.error('Error updating bonus_points:', bonusError);
+          }
+        }
+      }
+      
     }
 
     

@@ -223,27 +223,10 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage> {
           _currentLocation = initialPosition;
           _isInitializing = false;
         });
+        
         _startRun(initialPosition);
       }
-
-      _locationSubscription?.cancel();
-      _locationSubscription = _locationService.trackLocation().listen(
-            (position) {
-          if (mounted && !_hasEnded) {
-            setState(() {
-              _currentLocation = position;
-            });
-            if (_isInitializing && position.accuracy < 20) {
-              _isInitializing = false;
-              _startRun(position);
-            }
-          }
-        },
-        onError: (error) {
-          debugPrint('Error tracking location: $error');
-        },
-      );
-
+      
       
       Timer(const Duration(seconds: 30), () {
         if (_isInitializing && mounted && _currentLocation != null) {
@@ -255,6 +238,7 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage> {
       debugPrint('Error initializing run: $e');
     }
   }
+
 
   void _startRun(Position position) {
     if (!mounted) return;

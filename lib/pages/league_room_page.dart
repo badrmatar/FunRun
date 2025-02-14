@@ -1,5 +1,3 @@
-
-
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -78,22 +76,19 @@ class _LeagueRoomPageState extends State<LeagueRoomPage> {
         final pointsData = jsonDecode(pointsResponse.body);
         final membersData = jsonDecode(membersResponse.body);
 
-        print('Points data: $pointsData');
-        print('Members data: $membersData');
-
         
         final pointsList = List<Map<String, dynamic>>.from(pointsData['data'] ?? []);
         final membersList = List<Map<String, dynamic>>.from(membersData['teams'] ?? []);
 
         List<Map<String, dynamic>> teamsWithPoints = [];
 
-        
         if (pointsList.isEmpty) {
           teamsWithPoints = membersList.map((team) {
             return {
               ...team,
               'total_points': 0,
               'completed_challenges': 0,
+              'streak_count': team['streak_count'] ?? 0, 
             };
           }).toList();
         } else {
@@ -106,6 +101,8 @@ class _LeagueRoomPageState extends State<LeagueRoomPage> {
             return {
               ...pointsTeam,
               'members': memberTeam['members'] ?? [],
+              
+              'streak_count': memberTeam['streak_count'] ?? pointsTeam['streak_count'] ?? 0,
             };
           }).toList();
         }
@@ -136,10 +133,9 @@ class _LeagueRoomPageState extends State<LeagueRoomPage> {
 
   Future<int?> _getLeagueRoomId(int userId) async {
     final url = '${dotenv.env['SUPABASE_URL']}/functions/v1/get_active_league_room_id';
-
     final headers = {
       'Content-Type': 'application/json',
-      'Authorization': 'Bearer ${dotenv.env['BEARER_TOKEN']!}',
+      'Authorization': 'Bearer ${dotenv.env['BEARER_TOKEN']}',
     };
 
     try {
@@ -304,7 +300,8 @@ class _LeagueRoomPageState extends State<LeagueRoomPage> {
               final members = (team['members'] as List?)
                   ?.map((m) => m['users']?['name']?.toString() ?? '')
                   .where((name) => name.isNotEmpty)
-                  .toList() ?? [];
+                  .toList() ??
+                  [];
               final memberNames = members.join(', ');
 
               return Card(
@@ -368,6 +365,15 @@ class _LeagueRoomPageState extends State<LeagueRoomPage> {
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 4),
+                      
+                      Text(
+                        "Streak: ${team['streak_count'] ?? 0} days",
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade700,
+                        ),
                       ),
                       
                       if (memberNames.isNotEmpty)

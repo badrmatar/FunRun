@@ -53,6 +53,7 @@ serve(async (req: Request) => {
     const journeyType = (typeof journey_type === 'string' && (journey_type === 'duo' || journey_type === 'solo'))
       ? journey_type
       : 'solo';
+    console.log('Computed journeyType:', journeyType);
 
     
     const { data: teamMembership, error: teamError } = await supabase
@@ -123,9 +124,10 @@ serve(async (req: Request) => {
     }
 
     
+    
     const { data: allContributions, error: sumError } = await supabase
       .from('user_contributions')
-      .select('distance_covered')
+      .select('distance_covered, journey_type')
       .eq('team_challenge_id', teamChallenge.team_challenge_id);
 
     if (sumError) {
@@ -141,6 +143,27 @@ serve(async (req: Request) => {
     const totalKm = totalMeters / 1000;
     const requiredKm = teamChallenge.challenges.length;
     const isCompleted = totalKm >= requiredKm;
+
+    
+    const duoMeters = allContributions
+      .filter((c) => c.journey_type === 'duo')
+      .reduce((sum, c) => sum + (c.distance_covered || 0), 0);
+    const duoDistanceKm = duoMeters / 1000;
+
+    
+    if (duoDistanceKm >= requiredKm / 2) {
+      const { error: multiplierUpdateError } = await supabase
+        .from('team_challenges')
+        .update({ multiplier: 2 })
+        .eq('team_challenge_id', teamChallenge.team_challenge_id);
+      if (multiplierUpdateError) {
+        console.error('Multiplier update error:', multiplierUpdateError);
+      } else {
+        console.log(
+          `Multiplier updated to 2 for team_challenge_id ${teamChallenge.team_challenge_id} because duo distance ${duoDistanceKm} km reached half of required ${requiredKm} km`
+        );
+      }
+    }
 
     
     if (isCompleted) {
@@ -160,7 +183,8 @@ serve(async (req: Request) => {
         ...newContribution,
         challenge_completed: isCompleted,
         total_distance_km: totalKm,
-        required_distance_km: requiredKm
+        required_distance_km: requiredKm,
+        duo_distance: duoDistanceKm
       }
     };
 

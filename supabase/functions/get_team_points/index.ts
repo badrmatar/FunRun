@@ -6,88 +6,78 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 );
 
-serve(async (req) => {
-  if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { status: 405 }
-    );
-  }
 
+serve(async (req) => {
   try {
     const { league_room_id } = await req.json();
-    console.log('Getting points for league room:', league_room_id);
 
     
+    const { data: teamsData, error: teamsError } = await supabase
+      .from('teams')
+      .select('team_id, streak_bonus_points')
+      .eq('league_room_id', league_room_id);
+
+    if (teamsError) throw teamsError;
+
     
-    const { data: teamChallenges, error: challengesError } = await supabase
+    const teamBonuses = teamsData.reduce((acc, team) => {
+      acc[team.team_id] = team.streak_bonus_points || 0;
+      return acc;
+    }, {});
+
+    
+    const { data, error } = await supabase
       .from('team_challenges')
       .select(`
         team_id,
+        iscompleted,
         multiplier,
-        teams!inner (
-          team_id,
-          team_name,
-          league_room_id
-        ),
-        challenges!inner (
+        challenges (
           earning_points
-        ),
-        iscompleted
+        )
       `)
-      .eq('teams.league_room_id', league_room_id)
-      .eq('iscompleted', true);
+      .eq('league_room_id', league_room_id);
 
-    if (challengesError) {
-      console.error('Error fetching team challenges:', challengesError);
-      return new Response(
-        JSON.stringify({ error: challengesError.message }),
-        { status: 400 }
-      );
-    }
+    if (error) throw error;
 
     
-    const teamPoints = new Map();
-    teamChallenges.forEach(tc => {
-      const teamId = tc.team_id;
-      const basePoints = tc.challenges.earning_points || 0;
-      const multiplier = tc.multiplier || 1;
-      const points = basePoints * multiplier;
-      const teamName = tc.teams.team_name;
-
-      if (!teamPoints.has(teamId)) {
-        teamPoints.set(teamId, {
+    const teamPoints = data.reduce((acc, challenge) => {
+      const teamId = challenge.team_id;
+      if (!acc[teamId]) {
+        acc[teamId] = {
           team_id: teamId,
-          team_name: teamName,
           total_points: 0,
-          completed_challenges: 0
-        });
+          completed_challenges: 0,
+          streak_bonus: teamBonuses[teamId] || 0
+        };
       }
 
-      const team = teamPoints.get(teamId);
-      team.total_points += points;
-      team.completed_challenges += 1;
+      if (challenge.iscompleted) {
+        const basePoints = challenge.challenges.earning_points;
+        const multiplier = challenge.multiplier || 1;
+        acc[teamId].total_points += (basePoints * multiplier);
+        acc[teamId].completed_challenges += 1;
+      }
+
+      return acc;
+    }, {});
+
+    
+    Object.values(teamPoints).forEach(team => {
+      team.total_points += team.streak_bonus;
     });
 
-    
-    const teamsWithPoints = Array.from(teamPoints.values())
-      .sort((a, b) => b.total_points - a.total_points);
-
-    console.log('Teams with points:', teamsWithPoints);
-
     return new Response(
-      JSON.stringify({ data: teamsWithPoints }),
-      {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      }
+      JSON.stringify({
+        data: Object.values(teamPoints)
+      }),
+      { headers: { 'Content-Type': 'application/json' } }
     );
 
-  } catch (err) {
-    console.error('Unexpected error:', err);
+  } catch (error) {
     return new Response(
-      JSON.stringify({ error: err.message }),
-      { status: 500 }
+      JSON.stringify({ error: error.message }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } }
     );
   }
 });

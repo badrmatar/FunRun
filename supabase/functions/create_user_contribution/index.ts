@@ -167,6 +167,7 @@ serve(async (req: Request) => {
     
 
     
+    
     if (isCompleted) {
       console.log('Challenge completed! Updating status and streak...');
 
@@ -185,12 +186,13 @@ serve(async (req: Request) => {
 
       const { data: team, error: teamError } = await supabase
         .from('teams')
-        .select('current_streak, last_completion_date')
+        .select('current_streak, last_completion_date, streak_bonus_points')
         .eq('team_id', teamMembership.team_id)
         .single();
 
       if (!teamError && team) {
         let newStreak = 1; 
+        let newBonusPoints = team.streak_bonus_points || 0;
 
         if (team.last_completion_date) {
           const lastCompletion = new Date(team.last_completion_date);
@@ -202,21 +204,33 @@ serve(async (req: Request) => {
             newStreak = team.current_streak; 
           } else if (daysDifference === 1) {
             newStreak = team.current_streak + 1; 
+
+            
+            if (newStreak % 3 === 0) {
+              newBonusPoints += 100;
+              console.log('Awarding 100 bonus points for 3-day streak!');
+            }
           }
         }
 
+        
         const { error: streakError } = await supabase
           .from('teams')
           .update({
             current_streak: newStreak,
-            last_completion_date: today
+            last_completion_date: today,
+            streak_bonus_points: newBonusPoints
           })
           .eq('team_id', teamMembership.team_id);
 
         if (streakError) {
-          console.error('Error updating streak:', streakError);
+          console.error('Error updating team:', streakError);
         } else {
-          console.log('Successfully updated streak to:', newStreak);
+          console.log('Successfully updated team:', {
+            streak: newStreak,
+            bonusPoints: newBonusPoints,
+            team_id: teamMembership.team_id
+          });
         }
       } else {
         console.error('Error fetching team data:', teamError);

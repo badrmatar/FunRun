@@ -57,22 +57,25 @@ serve(async (req: Request) => {
     const team_id = teamMembership.team_id;
 
     
-    const { data: incompleteChallenges, error: incompleteError } = await supabase
+    const { data: conflictingChallenge, error: conflictError } = await supabase
       .from('team_challenges')
       .select('team_challenge_id')
-      .eq('team_id', team_id)
-      .eq('iscompleted', false);
+      .eq('challenge_id', challenge_id)
+      .eq('iscompleted', false)
+      .maybeSingle();
 
-    if (incompleteError) {
+    if (conflictError) {
       return new Response(
-        JSON.stringify({ error: 'Error checking active challenges.' }),
+        JSON.stringify({ error: 'Error checking active challenges for the same challenge.' }),
         { status: 500 }
       );
     }
 
-    if (incompleteChallenges && incompleteChallenges.length > 0) {
+    if (conflictingChallenge) {
       return new Response(
-        JSON.stringify({ error: 'Team already has an active challenge for today.' }),
+        JSON.stringify({
+          error: 'This challenge has already been picked by another team and is still active.',
+        }),
         { status: 400 }
       );
     }
@@ -126,7 +129,7 @@ serve(async (req: Request) => {
       .insert({
         team_id,
         challenge_id,
-        bonus: false,
+        multiplier: 1,
         iscompleted: false,
       })
       .select('team_challenge_id')

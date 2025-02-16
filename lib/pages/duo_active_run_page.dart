@@ -58,7 +58,7 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage> {
   Position? _partnerLocation;
   double _partnerDistance = 0.0;
   Timer? _partnerPollingTimer;
-  static const double MAX_ALLOWED_DISTANCE = 500; 
+  static const double MAX_ALLOWED_DISTANCE = 5000; 
 
   
   bool _hasEnded = false;

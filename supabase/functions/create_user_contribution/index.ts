@@ -21,7 +21,6 @@ serve(async (req: Request) => {
     const body = await req.json();
     console.log('Received request body:', body);
 
-    
     const {
       user_id,
       start_time,
@@ -31,8 +30,8 @@ serve(async (req: Request) => {
       end_latitude,
       end_longitude,
       distance_covered,
-      route,  
-      journey_type, 
+      route,
+      journey_type,
     } = body;
 
     const validationErrors = [];
@@ -40,7 +39,6 @@ serve(async (req: Request) => {
     if (typeof start_time !== 'string') validationErrors.push('start_time must be a string');
     if (typeof distance_covered !== 'number') validationErrors.push('distance_covered must be a number');
     if (!Array.isArray(route)) validationErrors.push('route must be an array');
-    
 
     if (validationErrors.length > 0) {
       return new Response(
@@ -49,7 +47,6 @@ serve(async (req: Request) => {
       );
     }
 
-    
     const journeyType = (typeof journey_type === 'string' && (journey_type === 'duo' || journey_type === 'solo'))
       ? journey_type
       : 'solo';
@@ -107,8 +104,8 @@ serve(async (req: Request) => {
         end_latitude,
         end_longitude,
         distance_covered,
-        route, 
-        journey_type: journeyType, 
+        route,
+        journey_type: journeyType,
         active: false,
         contribution_details: `Distance covered: ${distance_covered}m`
       })
@@ -123,7 +120,6 @@ serve(async (req: Request) => {
       );
     }
 
-    
     
     const { data: allContributions, error: sumError } = await supabase
       .from('user_contributions')
@@ -143,6 +139,7 @@ serve(async (req: Request) => {
     const totalKm = totalMeters / 1000;
     const requiredKm = teamChallenge.challenges.length;
     const isCompleted = totalKm >= requiredKm;
+    console.log('Total km:', totalKm, ' Required km:', requiredKm, ' Challenge Completed:', isCompleted);
 
     
     const duoMeters = allContributions
@@ -166,18 +163,66 @@ serve(async (req: Request) => {
     }
 
     
+
+    
+
+    
     if (isCompleted) {
+      console.log('Challenge completed! Updating status and streak...');
+
+      
       const { error: updateError } = await supabase
         .from('team_challenges')
         .update({ iscompleted: true })
         .eq('team_challenge_id', teamChallenge.team_challenge_id);
 
       if (updateError) {
-        console.error('Update error:', updateError);
+        console.error('Error marking challenge as completed:', updateError);
+      }
+
+      
+      const today = new Date().toISOString().split('T')[0];
+
+      const { data: team, error: teamError } = await supabase
+        .from('teams')
+        .select('current_streak, last_completion_date')
+        .eq('team_id', teamMembership.team_id)
+        .single();
+
+      if (!teamError && team) {
+        let newStreak = 1; 
+
+        if (team.last_completion_date) {
+          const lastCompletion = new Date(team.last_completion_date);
+          const daysDifference = Math.floor(
+            (new Date(today).getTime() - lastCompletion.getTime()) / (1000 * 60 * 60 * 24)
+          );
+
+          if (daysDifference === 0) {
+            newStreak = team.current_streak; 
+          } else if (daysDifference === 1) {
+            newStreak = team.current_streak + 1; 
+          }
+        }
+
+        const { error: streakError } = await supabase
+          .from('teams')
+          .update({
+            current_streak: newStreak,
+            last_completion_date: today
+          })
+          .eq('team_id', teamMembership.team_id);
+
+        if (streakError) {
+          console.error('Error updating streak:', streakError);
+        } else {
+          console.log('Successfully updated streak to:', newStreak);
+        }
+      } else {
+        console.error('Error fetching team data:', teamError);
       }
     }
 
-    
     const response = {
       data: {
         ...newContribution,

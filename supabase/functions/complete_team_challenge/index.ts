@@ -6,79 +6,27 @@ const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 serve(async (req: Request) => {
-  
-  if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      {
-        status: 405,
-        headers: { 'Content-Type': 'application/json' },
-      },
-    );
-  }
-
-  
-  let body;
   try {
-    body = await req.json();
-  } catch (_err) {
-    return new Response(
-      JSON.stringify({ error: 'Invalid JSON body' }),
-      {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      },
-    );
-  }
+    if (req.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 });
+    }
 
-  
-  const {
-    user_id,
-    start_time,
-    end_time,
-    start_latitude,
-    start_longitude,
-    end_latitude,
-    end_longitude,
-    distance_covered,
-  } = body;
+    const body = await req.json();
+    console.log('Received request body:', JSON.stringify(body, null, 2));
 
-  
-  const validationErrors = [];
-  if (typeof user_id !== 'number') {
-    validationErrors.push('user_id must be a number');
-  }
-  if (typeof start_time !== 'string') {
-    validationErrors.push('start_time must be a string (ISO 8601 format)');
-  }
-  if (typeof start_latitude !== 'number') {
-    validationErrors.push('start_latitude must be a number');
-  }
-  if (typeof start_longitude !== 'number') {
-    validationErrors.push('start_longitude must be a number');
-  }
-  if (typeof end_latitude !== 'number') {
-    validationErrors.push('end_latitude must be a number');
-  }
-  if (typeof end_longitude !== 'number') {
-    validationErrors.push('end_longitude must be a number');
-  }
-  if (typeof distance_covered !== 'number') {
-    validationErrors.push('distance_covered must be a number');
-  }
+    const {
+      user_id,
+      start_time,
+      end_time,
+      start_latitude,
+      start_longitude,
+      end_latitude,
+      end_longitude,
+      distance_covered,
+    } = body;
 
-  if (validationErrors.length > 0) {
-    return new Response(
-      JSON.stringify({ error: 'Invalid parameters', details: validationErrors }),
-      {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      },
-    );
-  }
-
-  try {
     
+    console.log('Getting team membership for user:', user_id);
     const { data: teamMembership, error: teamError } = await supabase
       .from('team_memberships')
       .select('team_id')
@@ -87,193 +35,92 @@ serve(async (req: Request) => {
       .single();
 
     if (teamError) {
+      console.error('Team membership error:', teamError);
       return new Response(
-        JSON.stringify({
-          error: 'Error finding team membership',
-          details: teamError.message
-        }),
+        JSON.stringify({ error: 'Error finding team membership', details: teamError.message }),
         { status: 400 }
       );
     }
 
+    const team_id = teamMembership.team_id;
+    console.log('Found team_id:', team_id);
+
     
+    console.log('Getting active challenge for team:', team_id);
     const { data: activeChallenge, error: challengeError } = await supabase
       .from('team_challenges')
-      .select('team_challenge_id, challenge_id, challenges (length)')
-      .eq('team_id', teamMembership.team_id)
+      .select(`
+        team_challenge_id,
+        challenge_id,
+        challenges (length, start_time)
+      `)
+      .eq('team_id', team_id)
       .eq('iscompleted', false)
       .order('team_challenge_id', { ascending: false })
       .limit(1)
       .single();
 
     if (challengeError) {
+      console.error('Active challenge error:', challengeError);
       return new Response(
-        JSON.stringify({
-          error: 'Error fetching active team challenge.',
-          details: challengeError.message
-        }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } },
-      );
-    }
-
-    if (!activeChallenge) {
-      return new Response(
-        JSON.stringify({
-          error: 'No active team challenge found for this team.',
-        }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        },
-      );
-    }
-
-    
-    const team_challenge_id = activeChallenge.team_challenge_id;
-    const finalEndTime = end_time ?? new Date().toISOString();
-
-    const { data: contributionData, error: contributionError } = await supabase
-      .from('user_contributions')
-      .insert({
-        team_challenge_id,
-        user_id,
-        start_time,
-        end_time: finalEndTime,
-        start_latitude,
-        end_latitude,
-        start_longitude,
-        end_longitude,
-        active: false,
-        contribution_details: `Distance covered: ${distance_covered}`,
-        distance_covered: distance_covered,
-      })
-      .select('*')
-      .single();
-
-    if (contributionError) {
-      return new Response(
-        JSON.stringify({
-          error: 'Failed to insert user contribution.',
-          details: contributionError.message,
-        }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        },
-      );
-    }
-
-    
-    const { data: challengeData, error: challengeError2 } = await supabase
-      .from('team_challenges')
-      .select(`
-        challenge_id,
-        challenges (length),
-        user_contributions (distance_covered)
-      `)
-      .eq('team_challenge_id', team_challenge_id)
-      .single();
-
-    if (challengeError2) {
-      return new Response(
-        JSON.stringify({
-          error: 'Error getting challenge details',
-          details: challengeError2.message,
-        }),
+        JSON.stringify({ error: 'Error fetching active challenge', details: challengeError.message }),
         { status: 500 }
       );
     }
 
-    
-    const contributions = challengeData.user_contributions || [];
-    const totalDistanceInMeters = contributions.reduce(
-      (sum: number, contrib: any) => sum + (contrib.distance_covered || 0),
-      0
-    );
-    const totalDistanceInKm = totalDistanceInMeters / 1000;
+    console.log('Found active challenge:', JSON.stringify(activeChallenge, null, 2));
 
     
-    const requiredDistance = challengeData.challenges.length;
-    let challengeCompleted = false;
 
-    if (totalDistanceInKm >= requiredDistance) {
+    const totalDistance = totalContributions.reduce((sum, contribution) =>
+      sum + (contribution.distance_covered || 0), 0);
+
+    const challengeLength = activeChallenge.challenges.length * 1000;
+    const isCompleted = totalDistance >= challengeLength;
+
+    console.log(`Challenge progress: ${totalDistance}/${challengeLength} meters`);
+    console.log('Is challenge completed?', isCompleted);
+
+    if (isCompleted) {
+      console.log('Challenge completed! Updating status...');
+
       
-      const now = new Date();
       const { error: updateError } = await supabase
         .from('team_challenges')
-        .update({ iscompleted: true, completed_at: now.toISOString() })
-        .eq('team_challenge_id', team_challenge_id);
+        .update({ iscompleted: true })
+        .eq('team_challenge_id', activeChallenge.team_challenge_id);
 
       if (updateError) {
-        return new Response(
-          JSON.stringify({
-            error: 'Error updating challenge completion status',
-            details: updateError.message,
-          }),
-          { status: 500 }
+        console.error('Error marking challenge as completed:', updateError);
+      }
+
+      
+      console.log('Calling update_team_streak for team:', team_id);
+      try {
+        const streakUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/update_team_streak`;
+        console.log('Calling streak URL:', streakUrl);
+
+        const streakResponse = await fetch(
+          streakUrl,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            },
+            body: JSON.stringify({ team_id }),
+          }
         );
+
+        const streakResult = await streakResponse.text();
+        console.log('Streak update response:', streakResult);
+
+        if (!streakResponse.ok) {
+          console.error('Failed to update team streak:', streakResult);
+        }
+      } catch (err) {
+        console.error('Error calling update_team_streak:', err);
       }
-      challengeCompleted = true;
-
-      
-      
-      const { data: teamData, error: teamDataError } = await supabase
-        .from('teams')
-        .select('streak_count, last_completed_date')
-        .eq('team_id', teamMembership.team_id)
-        .single();
-
-      if (teamDataError || !teamData) {
-        console.error('Error fetching team streak info:', teamDataError);
-      } else {
-        let { streak_count, last_completed_date } = teamData;
-        let newStreakCount = 1; 
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-
-        if (last_completed_date) {
-          const lastDate = new Date(last_completed_date);
-          if (
-            lastDate.getFullYear() === yesterday.getFullYear() &&
-            lastDate.getMonth() === yesterday.getMonth() &&
-            lastDate.getDate() === yesterday.getDate()
-          ) {
-            newStreakCount = streak_count + 1;
-          }
-        }
-
-        let bonus = 0;
-        if (newStreakCount >= 3) {
-          bonus = 50;
-          
-          newStreakCount = 0;
-        }
-
-        
-        const { error: updateTeamError } = await supabase
-          .from('teams')
-          .update({
-            streak_count: newStreakCount,
-            last_completed_date: now.toISOString().split('T')[0], 
-          })
-          .eq('team_id', teamMembership.team_id);
-
-        if (updateTeamError) {
-          console.error('Error updating team streak info:', updateTeamError);
-        }
-
-        
-        if (bonus > 0) {
-          const { error: bonusError } = await supabase
-            .from('team_challenges')
-            .update({ bonus_points: bonus })
-            .eq('team_challenge_id', team_challenge_id);
-          if (bonusError) {
-            console.error('Error updating bonus_points:', bonusError);
-          }
-        }
-      }
-      
     }
 
     
@@ -281,29 +128,21 @@ serve(async (req: Request) => {
       JSON.stringify({
         data: {
           ...contributionData,
-          team_challenge_id,
-          challenge_completed: challengeCompleted,
-          total_distance_km: totalDistanceInKm,
-          required_distance_km: requiredDistance
-        }
+          team_challenge_id: activeChallenge.team_challenge_id,
+          challenge_completed: isCompleted,
+          total_distance_km: totalDistance / 1000,
+          required_distance_km: challengeLength / 1000,
+          challenge_start_time: activeChallenge.challenges.start_time
+        },
       }),
-      {
-        status: 201,
-        headers: { 'Content-Type': 'application/json' },
-      },
+      { status: 201 }
     );
 
   } catch (err) {
     console.error('Unexpected error:', err);
     return new Response(
-      JSON.stringify({
-        error: 'Internal server error',
-        details: err.message,
-      }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      },
+      JSON.stringify({ error: 'Internal server error', details: err.message }),
+      { status: 500 }
     );
   }
 });

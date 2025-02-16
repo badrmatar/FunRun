@@ -36,6 +36,7 @@ serve(async (req) => {
       .select(`
         team_id,
         team_name,
+        current_streak,
         members:team_memberships(
           user_id,
           users(name)
@@ -45,9 +46,22 @@ serve(async (req) => {
 
     if (teamsError) throw teamsError;
 
+    console.log('Teams data:', teamsData);
+
+    
+    const teamsWithStreak = teamsData.map(team => ({
+      ...team,
+      teams: {
+        team_name: team.team_name,
+        current_streak: team.current_streak || 0 
+      }
+    }));
+
+    console.log('Transformed teams data:', teamsWithStreak);
+
     
     return new Response(JSON.stringify({
-      teams: teamsData,
+      teams: teamsWithStreak,
       owner_id: ownerUserId
     }), {
       status: 200,
@@ -55,6 +69,7 @@ serve(async (req) => {
     });
 
   } catch (error) {
+    console.error('Error in get_league_teams:', error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' }

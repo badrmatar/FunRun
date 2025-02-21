@@ -6,78 +6,101 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 );
 
-
 serve(async (req) => {
+  if (req.method !== 'POST') {
+    return new Response(
+      JSON.stringify({ error: 'Method not allowed' }),
+      { status: 405 }
+    );
+  }
+
   try {
     const { league_room_id } = await req.json();
+    console.log('Getting points for league room:', league_room_id);
 
     
-    const { data: teamsData, error: teamsError } = await supabase
-      .from('teams')
-      .select('team_id, streak_bonus_points')
-      .eq('league_room_id', league_room_id);
-
-    if (teamsError) throw teamsError;
-
     
-    const teamBonuses = teamsData.reduce((acc, team) => {
-      acc[team.team_id] = team.streak_bonus_points || 0;
-      return acc;
-    }, {});
-
     
-    const { data, error } = await supabase
+    const { data: teamChallenges, error: challengesError } = await supabase
       .from('team_challenges')
       .select(`
         team_id,
-        iscompleted,
         multiplier,
-        challenges (
+        teams!inner (
+          team_id,
+          team_name,
+          league_room_id,
+          streak_bonus_points
+        ),
+        challenges!inner (
           earning_points
-        )
+        ),
+        iscompleted
       `)
-      .eq('league_room_id', league_room_id);
+      .eq('teams.league_room_id', league_room_id)
+      .eq('iscompleted', true);
 
-    if (error) throw error;
+    if (challengesError) {
+      console.error('Error fetching team challenges:', challengesError);
+      return new Response(
+        JSON.stringify({ error: challengesError.message }),
+        { status: 400 }
+      );
+    }
 
     
-    const teamPoints = data.reduce((acc, challenge) => {
-      const teamId = challenge.team_id;
-      if (!acc[teamId]) {
-        acc[teamId] = {
+    const teamPoints = new Map<number, {
+      team_id: number,
+      team_name: string,
+      total_points: number,
+      completed_challenges: number,
+      streak_bonus_points: number
+    }>();
+
+    teamChallenges.forEach(tc => {
+      const teamId = tc.team_id;
+      const teamName = tc.teams.team_name;
+      
+      const bonus = tc.teams.streak_bonus_points || 0;
+      const basePoints = tc.challenges.earning_points || 0;
+      const multiplier = tc.multiplier || 1;
+      const points = basePoints * multiplier;
+
+      if (!teamPoints.has(teamId)) {
+        
+        teamPoints.set(teamId, {
           team_id: teamId,
-          total_points: 0,
+          team_name: teamName,
+          total_points: bonus, 
           completed_challenges: 0,
-          streak_bonus: teamBonuses[teamId] || 0
-        };
+          streak_bonus_points: bonus
+        });
       }
 
-      if (challenge.iscompleted) {
-        const basePoints = challenge.challenges.earning_points;
-        const multiplier = challenge.multiplier || 1;
-        acc[teamId].total_points += (basePoints * multiplier);
-        acc[teamId].completed_challenges += 1;
-      }
-
-      return acc;
-    }, {});
-
-    
-    Object.values(teamPoints).forEach(team => {
-      team.total_points += team.streak_bonus;
+      const team = teamPoints.get(teamId)!;
+      team.total_points += points;
+      team.completed_challenges += 1;
     });
 
+    
+    const teamsWithPoints = Array.from(teamPoints.values())
+      .sort((a, b) => b.total_points - a.total_points);
+
+    console.log('Teams with points:', teamsWithPoints);
+
     return new Response(
-      JSON.stringify({
-        data: Object.values(teamPoints)
-      }),
-      { headers: { 'Content-Type': 'application/json' } }
+      JSON.stringify({ data: teamsWithPoints }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      }
     );
 
-  } catch (error) {
+  } catch (err) {
+    console.error('Unexpected error:', err);
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: err.message }),
+      { status: 500 }
     );
   }
 });

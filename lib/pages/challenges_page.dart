@@ -94,17 +94,28 @@ class _ChallengesPageState extends State<ChallengesPage> {
         };
       }).toList();
 
+      
+      dynamic activeTeamChallenge;
+      if (teamChallengesWithDistance.isNotEmpty) {
+        activeTeamChallenge = teamChallengesWithDistance.first;
+        
+        bool isTodayChallenge = challengesList.any((c) =>
+        c['challenge_id'] == activeTeamChallenge['challenge_id']);
+        if (!isTodayChallenge) {
+          activeTeamChallenge = null;
+        }
+      }
+
       return {
         'challenges': challengesList,
-        'activeTeamChallenge': teamChallengesWithDistance.isNotEmpty
-            ? teamChallengesWithDistance.first
-            : null,
+        'activeTeamChallenge': activeTeamChallenge,
       };
     } catch (e) {
       debugPrint('Error fetching challenges and team status: $e');
       rethrow;
     }
   }
+
 
   Future<void> _handleChallengeAction(
       Challenge challenge, dynamic activeTeamChallenge, BuildContext context) async {

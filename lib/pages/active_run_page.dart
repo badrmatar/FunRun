@@ -36,8 +36,8 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
   Timer? _locationSamplingTimer; 
 
   
-  final double _goodAccuracyThreshold = Platform.isIOS ? 65.0 : 20.0;
-  final double _acceptableAccuracyThreshold = Platform.isIOS ? 100.0 : 40.0;
+  final double _goodAccuracyThreshold = 20.0; 
+  final double _acceptableAccuracyThreshold = 50.0; 
 
   @override
   void initState() {
@@ -224,20 +224,23 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
       setState(() => _debugStatus = "Best accuracy: ${bestPosition.accuracy.toStringAsFixed(1)}m");
 
       
-      if (bestPosition.accuracy <= _acceptableAccuracyThreshold || forceStart) {
+      if (bestPosition.accuracy <= _acceptableAccuracyThreshold) {
         _startRunWithPosition(bestPosition);
         return;
+      } else {
+        
+        setState(() => _debugStatus = "GPS accuracy of ${bestPosition.accuracy.toStringAsFixed(1)}m exceeds the required 50m threshold");
+
+        
+        if (forceStart && bestPosition.accuracy < 200) {
+          _startRunWithPosition(bestPosition);
+          return;
+        }
       }
     }
 
     
-    if (currentLocation != null && (forceStart || _positionSamples.isEmpty)) {
-      _startRunWithPosition(currentLocation!);
-      return;
-    }
-
-    
-    if (forceStart && currentLocation != null) {
+    if (currentLocation != null && currentLocation!.accuracy <= _acceptableAccuracyThreshold) {
       _startRunWithPosition(currentLocation!);
       return;
     }
@@ -274,17 +277,17 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
         });
 
         
-        if (_isValidAccuracy(position.accuracy) || _locationAttempts > 15) {
+        if (_isValidAccuracy(position.accuracy) && position.accuracy <= _acceptableAccuracyThreshold) {
           _startRunWithPosition(position);
         } else {
           setState(() {
             _isInitializing = false;
-            _debugStatus = "Could not get accurate location";
+            _debugStatus = "GPS accuracy of ${position.accuracy.toStringAsFixed(1)}m exceeds the required 50m threshold";
           });
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('GPS accuracy is poor. Try again in an open area.'),
-              duration: Duration(seconds: 3),
+              content: Text('GPS accuracy is too poor (must be under 50m). Please try again in an open area with clear sky view.'),
+              duration: Duration(seconds: 5),
             ),
           );
         }
@@ -480,16 +483,29 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
                   },
                   child: const Text('Retry Location'),
                 ),
-                if (Platform.isIOS && currentLocation != null)
-                  ElevatedButton(
-                    onPressed: () {
-                      
-                      _startRunWithPosition(currentLocation!);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                    ),
-                    child: const Text('Force Start with Current Location'),
+                if (currentLocation != null)
+                  Column(
+                    children: [
+                      if (currentLocation!.accuracy > _acceptableAccuracyThreshold)
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text(
+                            'Warning: GPS accuracy is ${currentLocation!.accuracy.toStringAsFixed(1)}m\nMust be under 50m',
+                            style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ElevatedButton(
+                        onPressed: currentLocation!.accuracy <= _acceptableAccuracyThreshold
+                            ? () => _startRunWithPosition(currentLocation!)
+                            : null, 
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          disabledBackgroundColor: Colors.grey,
+                        ),
+                        child: const Text('Start When Accuracy < 50m'),
+                      ),
+                    ],
                   ),
               ],
             ),
@@ -531,9 +547,52 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
           Positioned(
             top: 20,
             left: 20,
-            child: RunMetricsCard(
-              time: _formatTime(secondsElapsed),
-              distance: '${(distanceKm).toStringAsFixed(2)} km',
+            child: Card(
+              color: Colors.white.withOpacity(0.9),
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Time: ${_formatTime(secondsElapsed)}',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Distance: ${(distanceKm).toStringAsFixed(2)} km',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    
+                    Row(
+                      children: [
+                        Text(
+                          'Accuracy: ${currentLocation?.accuracy.toStringAsFixed(1) ?? "N/A"} m',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: currentLocation != null && currentLocation!.accuracy <= _acceptableAccuracyThreshold
+                                ? Colors.green
+                                : Colors.red,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        
+                        Icon(
+                          currentLocation != null && currentLocation!.accuracy <= _acceptableAccuracyThreshold
+                              ? Icons.check_circle
+                              : Icons.error_outline,
+                          color: currentLocation != null && currentLocation!.accuracy <= _acceptableAccuracyThreshold
+                              ? Colors.green
+                              : Colors.red,
+                          size: 14,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
           

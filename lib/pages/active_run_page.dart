@@ -124,19 +124,12 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
     }
 
     
-    _startLocationSampling();
-
-    
-    Timer(const Duration(seconds: 30), () {
-      if (_isInitializing && mounted) {
-        _locationSamplingTimer?.cancel();
-        _evaluateAndStartRun(true); 
-      }
-    });
+    _startLocationSamplingUntilGoodAccuracy();
   }
 
   
-  void _startLocationSampling() {
+  void _startLocationSamplingUntilGoodAccuracy() {
+    
     _locationSamplingTimer?.cancel();
 
     
@@ -152,18 +145,10 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
       distanceFilter: 0,
     );
 
-    setState(() => _debugStatus = "Collecting location samples...");
+    setState(() => _debugStatus = "Waiting for GPS accuracy < 50m...");
 
     
     StreamSubscription<Position>? subscription;
-
-    
-    _locationSamplingTimer = Timer(const Duration(seconds: 15), () {
-      subscription?.cancel();
-      if (mounted && _isInitializing) {
-        _evaluateAndStartRun(false);
-      }
-    });
 
     
     subscription = Geolocator.getPositionStream(
@@ -187,17 +172,21 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
           }
 
           
-          if (position.accuracy <= _goodAccuracyThreshold) {
+          if (position.accuracy <= _acceptableAccuracyThreshold) {
             subscription?.cancel();
-            _evaluateAndStartRun(false);
+            _startRunWithPosition(position); 
             return;
           }
 
           
-          if (_positionSamples.length >= 5 || _locationAttempts >= 10) {
-            subscription?.cancel();
-            _evaluateAndStartRun(false);
-            return;
+          if (position.accuracy == 1440.0) {
+            setState(() {
+              _debugStatus = "Received default accuracy value (1440m). Waiting for better signal...";
+            });
+          } else if (position.accuracy > _acceptableAccuracyThreshold) {
+            setState(() {
+              _debugStatus = "Accuracy: ${position.accuracy.toStringAsFixed(1)}m - waiting for < 50m";
+            });
           }
         },
         onError: (error) {
@@ -486,24 +475,33 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
                 if (currentLocation != null)
                   Column(
                     children: [
-                      if (currentLocation!.accuracy > _acceptableAccuracyThreshold)
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Text(
-                            'Warning: GPS accuracy is ${currentLocation!.accuracy.toStringAsFixed(1)}m\nMust be under 50m',
-                            style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
-                            textAlign: TextAlign.center,
+                      Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Text(
+                          'Current accuracy: ${currentLocation!.accuracy.toStringAsFixed(1)}m\nWaiting for accuracy < 50m',
+                          style: TextStyle(
+                              color: currentLocation!.accuracy <= _acceptableAccuracyThreshold
+                                  ? Colors.green
+                                  : Colors.orange,
+                              fontWeight: FontWeight.bold
                           ),
+                          textAlign: TextAlign.center,
                         ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'No time limit - will start automatically\nwhen accuracy is below 50m',
+                        style: const TextStyle(color: Colors.white70),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 20),
                       ElevatedButton(
-                        onPressed: currentLocation!.accuracy <= _acceptableAccuracyThreshold
-                            ? () => _startRunWithPosition(currentLocation!)
-                            : null, 
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          disabledBackgroundColor: Colors.grey,
-                        ),
-                        child: const Text('Start When Accuracy < 50m'),
+                        onPressed: () {
+                          _locationAttempts = 0;
+                          _positionSamples.clear();
+                          _initializeLocationTracking(); 
+                        },
+                        child: const Text('Restart GPS Search'),
                       ),
                     ],
                   ),

@@ -1,6 +1,7 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io'; 
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -8,8 +9,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
-import 'dart:async'; 
-import 'dart:convert'; 
 
 import '../models/user.dart';
 import '../mixins/run_tracking_mixin.dart';
@@ -30,37 +29,86 @@ class ActiveRunPage extends StatefulWidget {
 }
 
 class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
+  bool _isInitializing = true; 
+  int _locationAttempts = 0; 
+
   @override
   void initState() {
     super.initState();
+    _initializeLocationTracking();
+  }
+
+  
+  Future<void> _initializeLocationTracking() async {
+    setState(() {
+      _isInitializing = true;
+    });
 
     
-    locationService.getCurrentLocation().then((position) {
+    try {
+      final position = await locationService.getCurrentLocation();
       if (position != null && mounted) {
         setState(() {
           currentLocation = position;
         });
 
         
-        if (position.accuracy < 30) {
-          startRun(position);
+        if (Platform.isIOS) {
+          if (position.accuracy < 50) {
+            
+            _startRunWithPosition(position);
+          } else {
+            _waitForBetterAccuracyIOS();
+          }
         } else {
           
+          if (position.accuracy < 30) {
+            _startRunWithPosition(position);
+          } else {
+            _waitForBetterAccuracy();
+          }
+        }
+      } else {
+        
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Waiting for better GPS accuracy...'),
-              duration: Duration(seconds: 3),
+              content: Text('Unable to get your location. Please check app permissions.'),
+              duration: Duration(seconds: 4),
             ),
           );
-
-          
-          _waitForBetterAccuracy();
         }
       }
-    });
+    } catch (e) {
+      print('Error initializing location: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Location error: ${e.toString()}'),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
   }
 
+  
+  void _startRunWithPosition(Position position) {
+    if (mounted) {
+      setState(() {
+        _isInitializing = false;
+      });
+      startRun(position);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Starting run with accuracy: ${position.accuracy.toStringAsFixed(1)}m'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
 
+  
   void _waitForBetterAccuracy() {
     Timer.periodic(const Duration(seconds: 2), (timer) async {
       if (!mounted) {
@@ -68,6 +116,7 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
         return;
       }
 
+      _locationAttempts++;
       final newPosition = await locationService.getCurrentLocation();
       if (newPosition != null && mounted) {
         setState(() {
@@ -75,31 +124,67 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
         });
 
         
-        if (newPosition.accuracy < 30) {
+        if (newPosition.accuracy < 30 || _locationAttempts > 10) {
           timer.cancel();
-          startRun(newPosition);
+          _startRunWithPosition(newPosition);
+        }
+      }
 
-          
+      
+      if (_locationAttempts > 15) {
+        timer.cancel();
+        if (mounted && currentLocation != null) {
+          _startRunWithPosition(currentLocation!);
+        } else {
+          setState(() {
+            _isInitializing = false;
+          });
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('GPS signal acquired! Starting run...'),
-              duration: Duration(seconds: 2),
+              content: Text('Could not get accurate location after multiple attempts.'),
+              duration: Duration(seconds: 3),
             ),
           );
         }
       }
     });
+  }
 
-    
-    Future.delayed(const Duration(seconds: 45), () {
-      if (mounted && !isTracking) {
+  
+  void _waitForBetterAccuracyIOS() {
+    Timer.periodic(const Duration(seconds: 2), (timer) async {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      _locationAttempts++;
+      final newPosition = await locationService.getCurrentLocation();
+      if (newPosition != null && mounted) {
+        setState(() {
+          currentLocation = newPosition;
+        });
+
         
-        if (currentLocation != null) {
-          startRun(currentLocation!);
+        if (newPosition.accuracy < 50 || _locationAttempts > 7) {
+          timer.cancel();
+          _startRunWithPosition(newPosition);
+        }
+      }
+
+      
+      if (_locationAttempts > 10) {
+        timer.cancel();
+        if (currentLocation != null && mounted) {
+          _startRunWithPosition(currentLocation!);
+        } else {
+          setState(() {
+            _isInitializing = false;
+          });
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Starting run with current accuracy (${currentLocation!.accuracy.toStringAsFixed(1)}m)'),
-              duration: const Duration(seconds: 3),
+            const SnackBar(
+              content: Text('Location services seem unavailable. Please check permissions.'),
+              duration: Duration(seconds: 3),
             ),
           );
         }
@@ -188,6 +273,48 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
 
   @override
   Widget build(BuildContext context) {
+    
+    if (_isInitializing) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Active Run')),
+        body: Container(
+          color: Colors.black.withOpacity(0.7),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'Waiting for GPS signal...',
+                  style: TextStyle(
+                    fontSize: 22,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                CircularProgressIndicator(
+                  color: currentLocation != null ? Colors.green : Colors.white,
+                ),
+                if (currentLocation != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16.0),
+                    child: Text(
+                      'Accuracy: ${currentLocation!.accuracy.toStringAsFixed(1)} meters',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                const SizedBox(height: 10),
+                Text(
+                  'Attempt ${_locationAttempts + 1}',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     final distanceKm = distanceCovered / 1000;
     return Scaffold(
       appBar: AppBar(title: const Text('Active Run')),

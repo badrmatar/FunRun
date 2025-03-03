@@ -24,40 +24,52 @@ class LocationService {
   Future<Position?> getCurrentLocation() async {
     try {
       
-      var locationSettings = const LocationSettings(
-        accuracy: LocationAccuracy.high,
-      );
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        return null; 
+      }
+
+      
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return null; 
+      }
 
       
       if (Platform.isIOS) {
-        locationSettings = AppleSettings(
-          accuracy: LocationAccuracy.high,
-          activityType: ActivityType.fitness,
-          showBackgroundLocationIndicator: true,
+        return await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.bestForNavigation,
+          timeLimit: const Duration(seconds: 10),
+        );
+      } else {
+        
+        return await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 5),
         );
       }
-
-      return await Geolocator.getCurrentPosition(
-        locationSettings: locationSettings,
-      );
     } catch (e) {
+      print('Error getting location: $e');
       return null;
     }
   }
 
-  
+
   Stream<Position> trackLocation() {
     var locationSettings = const LocationSettings(
       accuracy: LocationAccuracy.high,
-      distanceFilter: 15,
+      distanceFilter: 5, 
     );
 
     
     if (Platform.isIOS) {
       locationSettings = AppleSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 15,
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 5,
         activityType: ActivityType.fitness,
+        pauseLocationUpdatesAutomatically: false,
+        allowBackgroundLocationUpdates: true,
         showBackgroundLocationIndicator: true,
       );
     }

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
@@ -38,25 +40,34 @@ Future<void> requestLocationPermission() async {
     }
 
     
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
+    if (Platform.isIOS) {
       
-      permission = await Geolocator.requestPermission();
+      LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         
-        print('Location permissions denied');
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          print('Location permissions denied on iOS');
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        
+        print('Location permissions permanently denied on iOS, guide user to settings');
         return;
       }
-    }
-
-    if (permission == LocationPermission.deniedForever) {
+    } else {
       
-      print('Location permissions permanently denied, cannot request permission');
-      return;
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          print('Location permissions denied');
+          return;
+        }
+      }
     }
-
-    
-    print('Location permissions granted: $permission');
 
     
     try {

@@ -33,23 +33,31 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
   @override
   void initState() {
     super.initState();
+
     
-    locationService.getCurrentLocation().then((position) {
+    locationService.getCurrentLocation().then((position) async {
       if (position != null && mounted) {
         setState(() {
           currentLocation = position;
         });
-        
-        if (position.accuracy < 20) {
-          startRun(position);
-        }
-      }
-    });
 
-    
-    Timer(const Duration(seconds: 30), () {
-      if (currentLocation != null && mounted && !isTracking) {
-        startRun(currentLocation!);
+        
+        await Future.delayed(const Duration(seconds: 3));
+        final updatedPosition = await locationService.getCurrentLocation();
+
+        if (updatedPosition != null && mounted) {
+          
+          if (updatedPosition.accuracy < 50) {
+            startRun(updatedPosition);
+          } else {
+            
+            await Future.delayed(const Duration(seconds: 3));
+            final finalPosition = await locationService.getCurrentLocation();
+            if (finalPosition != null && mounted) {
+              startRun(finalPosition);
+            }
+          }
+        }
       }
     });
   }

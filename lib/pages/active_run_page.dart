@@ -35,28 +35,73 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
     super.initState();
 
     
-    locationService.getCurrentLocation().then((position) async {
+    locationService.getCurrentLocation().then((position) {
       if (position != null && mounted) {
         setState(() {
           currentLocation = position;
         });
 
         
-        await Future.delayed(const Duration(seconds: 3));
-        final updatedPosition = await locationService.getCurrentLocation();
-
-        if (updatedPosition != null && mounted) {
+        if (position.accuracy < 30) {
+          startRun(position);
+        } else {
           
-          if (updatedPosition.accuracy < 50) {
-            startRun(updatedPosition);
-          } else {
-            
-            await Future.delayed(const Duration(seconds: 3));
-            final finalPosition = await locationService.getCurrentLocation();
-            if (finalPosition != null && mounted) {
-              startRun(finalPosition);
-            }
-          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Waiting for better GPS accuracy...'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+
+          
+          _waitForBetterAccuracy();
+        }
+      }
+    });
+  }
+
+
+  void _waitForBetterAccuracy() {
+    Timer.periodic(const Duration(seconds: 2), (timer) async {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      final newPosition = await locationService.getCurrentLocation();
+      if (newPosition != null && mounted) {
+        setState(() {
+          currentLocation = newPosition;
+        });
+
+        
+        if (newPosition.accuracy < 30) {
+          timer.cancel();
+          startRun(newPosition);
+
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('GPS signal acquired! Starting run...'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    });
+
+    
+    Future.delayed(const Duration(seconds: 45), () {
+      if (mounted && !isTracking) {
+        
+        if (currentLocation != null) {
+          startRun(currentLocation!);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Starting run with current accuracy (${currentLocation!.accuracy.toStringAsFixed(1)}m)'),
+              duration: const Duration(seconds: 3),
+            ),
+          );
         }
       }
     });

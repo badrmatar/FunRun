@@ -38,22 +38,20 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
   bool _isWaiting = true;
   DateTime _waitingStartTime = DateTime.now();
   StreamSubscription<Position>? _fixSubscription;
-
-  
   String _loadingDebug = "Initializing GPS...";
 
   @override
   void initState() {
     super.initState();
     
-    _waitingStartTime = DateTime.now();
+    resetRunState();
+    
     _startWaitingForFix();
     
     Timer(_fallbackDuration, () {
       if (!_hasGoodFix && currentLocation != null) {
         _fixSubscription?.cancel();
         _hasGoodFix = true;
-        
         startRun(currentLocation!);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -70,33 +68,41 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
   }
 
   
+  void resetRunState() {
+    setState(() {
+      _isWaiting = true;
+      _hasGoodFix = false;
+      _waitingStartTime = DateTime.now();
+      currentLocation = null;
+      
+      routePoints.clear();
+      routePolyline = routePolyline.copyWith(pointsParam: routePoints);
+      secondsElapsed = 0;
+      distanceCovered = 0.0;
+    });
+  }
+
+  
   void _startWaitingForFix() {
     _fixSubscription = locationService.trackLocation().listen((position) {
       
-      if (position.timestamp == null ||
-          !position.timestamp!.isAfter(_waitingStartTime)) {
+      if (position.timestamp == null || !position.timestamp!.isAfter(_waitingStartTime)) {
         return;
       }
-
       
       setState(() {
         currentLocation = position;
-        _loadingDebug =
-        "Current Accuracy: ${position.accuracy.toStringAsFixed(1)}m";
+        _loadingDebug = "Current Accuracy: ${position.accuracy.toStringAsFixed(1)}m";
       });
-
       final elapsed = DateTime.now().difference(_waitingStartTime);
-
-      if (elapsed >= _minWaitingDuration &&
-          position.accuracy < _targetAccuracy) {
-        
+      
+      if (elapsed >= _minWaitingDuration && position.accuracy < _targetAccuracy) {
         _fixSubscription?.cancel();
         _hasGoodFix = true;
         startRun(position);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-                'Run started with accuracy: ${position.accuracy.toStringAsFixed(1)}m'),
+            content: Text('Run started with accuracy: ${position.accuracy.toStringAsFixed(1)}m'),
             duration: const Duration(seconds: 2),
           ),
         );
@@ -105,7 +111,6 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
         });
       }
     }, onError: (error) {
-      
       setState(() {
         _loadingDebug = "Error: $error";
       });
@@ -122,6 +127,8 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
     }
     endRun();
     _saveRunData();
+    
+    resetRunState();
   }
 
   Future<void> _saveRunData() async {
@@ -163,7 +170,6 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
         },
         body: jsonEncode(requestBody),
       );
-
       if (response.statusCode == 201) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Run saved successfully!')),

@@ -29,61 +29,57 @@ class ActiveRunPage extends StatefulWidget {
 
 class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
   
-  final int _freshnessThresholdSeconds = 5;
-  
-  final double _acceptableAccuracyThreshold = 50.0;
-
-  StreamSubscription<Position>? _startRunSubscription;
+  final double _acceptableAccuracyThreshold = 60.0; 
+  bool _hasGoodFix = false; 
+  StreamSubscription<Position>? _fixSubscription;
+  String _loadingDebug = "Initializing GPS...";
 
   @override
   void initState() {
     super.initState();
     
-    
-    _startRunSubscription = locationService.trackLocation().listen((position) {
-      if (position.timestamp == null) return; 
-      final age = DateTime.now().difference(position.timestamp!).inSeconds;
-      
-      
-
+    _fixSubscription = locationService.trackLocation().listen((position) {
       
       setState(() {
         currentLocation = position;
+        _loadingDebug =
+        "Current accuracy: ${position.accuracy.toStringAsFixed(1)}m";
       });
 
       
-      
-      if (!isTracking &&
-          age <= _freshnessThresholdSeconds &&
-          position.accuracy < _acceptableAccuracyThreshold) {
+      if (position.accuracy < _acceptableAccuracyThreshold) {
         
-        _startRunSubscription?.cancel();
+        _fixSubscription?.cancel();
+        _hasGoodFix = true;
+        
         startRun(position);
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Run started with accuracy: ${position.accuracy.toStringAsFixed(1)}m',
-            ),
+                'GPS fix acquired with ${position.accuracy.toStringAsFixed(1)}m accuracy'),
             duration: const Duration(seconds: 2),
           ),
         );
+        
+        setState(() {});
       }
     });
 
     
-    
     Timer(const Duration(seconds: 30), () {
-      if (!isTracking && currentLocation != null) {
-        _startRunSubscription?.cancel();
+      if (!_hasGoodFix && currentLocation != null) {
+        _fixSubscription?.cancel();
+        _hasGoodFix = true;
         startRun(currentLocation!);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Fallback: Run started with accuracy: ${currentLocation!.accuracy.toStringAsFixed(1)}m',
-            ),
+                'Fallback: using current accuracy: ${currentLocation!.accuracy.toStringAsFixed(1)}m'),
             duration: const Duration(seconds: 2),
           ),
         );
+        setState(() {});
       }
     });
   }
@@ -167,12 +163,43 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
 
   @override
   void dispose() {
-    _startRunSubscription?.cancel();
+    _fixSubscription?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    
+    if (!_hasGoodFix) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Acquiring GPS Signal')),
+        body: Container(
+          color: Colors.black,
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(color: Colors.green),
+                const SizedBox(height: 20),
+                Text(
+                  _loadingDebug,
+                  style: const TextStyle(color: Colors.white, fontSize: 18),
+                ),
+                const SizedBox(height: 10),
+                if (currentLocation != null)
+                  Text(
+                    'Lat: ${currentLocation!.latitude.toStringAsFixed(6)}\nLng: ${currentLocation!.longitude.toStringAsFixed(6)}',
+                    style: const TextStyle(color: Colors.white70),
+                    textAlign: TextAlign.center,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    
     final distanceKm = distanceCovered / 1000;
     return Scaffold(
       appBar: AppBar(title: const Text('Active Run')),
@@ -213,6 +240,7 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
                 ),
               ),
             ),
+          
         ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,

@@ -113,7 +113,7 @@ class JourneyTypePage extends StatelessWidget {
     
     Navigator.pushReplacementNamed(
       context,
-      '/active_run',
+      '/run_loading',
       arguments: {
         'journey_type': 'solo',
         'challenge_id': challengeId,

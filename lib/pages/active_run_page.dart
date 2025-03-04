@@ -229,6 +229,7 @@ class ActiveRunPageState extends State<ActiveRunPage> {
       _manuallyPaused = !_manuallyPaused;
     });
   }
+  
   Future<void> _endRunAndSave() async {
     if (_routePoints.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -273,7 +274,7 @@ class ActiveRunPageState extends State<ActiveRunPage> {
       if (mounted) Navigator.of(context).pop();
 
       
-      _showRunSummary();
+      Navigator.of(context).pushReplacementNamed('/challenges');
     } catch (e) {
       
       if (mounted) Navigator.of(context).pop();

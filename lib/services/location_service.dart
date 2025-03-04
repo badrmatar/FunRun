@@ -1,4 +1,5 @@
 
+import 'dart:async';
 import 'dart:io';
 import 'package:geolocator/geolocator.dart';
 
@@ -27,8 +28,17 @@ class LocationService {
     if (accuracy == 1440.0) return false;
 
     
-    if (accuracy > 100.0 && !Platform.isIOS) return false;
-    if (accuracy > 200.0 && Platform.isIOS) return false;
+    if (Platform.isIOS) {
+      
+      if (accuracy == 65.0) return false;
+      if (accuracy == 100.0) return false;
+
+      
+      if (accuracy > 200.0) return false;
+    } else {
+      
+      if (accuracy > 500.0) return false;
+    }
 
     return true;
   }
@@ -38,90 +48,88 @@ class LocationService {
       
       if (Platform.isIOS) {
         final LocationSettings locationSettings = AppleSettings(
-          accuracy: LocationAccuracy.bestForNavigation, 
+          accuracy: LocationAccuracy.bestForNavigation,
+          distanceFilter: 0,
           activityType: ActivityType.fitness,
-          distanceFilter: 0, 
           pauseLocationUpdatesAutomatically: false,
-          
           allowBackgroundLocationUpdates: true,
           showBackgroundLocationIndicator: true,
         );
 
-        
         try {
-          final positionStream = Geolocator.getPositionStream(
-            locationSettings: locationSettings,
-          ).timeout(
-            const Duration(seconds: 15),
-            onTimeout: (sink) => sink.close(),
-          );
-
-          final positions = await positionStream.take(8).toList();
+          
+          await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.lowest,
+            timeLimit: const Duration(seconds: 1),
+          ).catchError((_) {}); 
 
           
-          final validPositions = positions
-              .where((pos) => _isValidAccuracy(pos.accuracy))
-              .toList();
+          await Future.delayed(const Duration(milliseconds: 500));
 
-          if (validPositions.isNotEmpty) {
-            validPositions.sort((a, b) => a.accuracy.compareTo(b.accuracy));
-            return validPositions.first; 
-          }
+          
+          final positions = await Geolocator.getPositionStream(
+              locationSettings: locationSettings
+          )
+              .take(10) 
+              .timeout(
+            const Duration(seconds: 15),
+            onTimeout: (sink) => sink.close(),
+          )
+              .toList();
 
           
           if (positions.isNotEmpty) {
+            final validPositions = positions
+                .where((pos) => _isValidAccuracy(pos.accuracy))
+                .toList();
+
+            if (validPositions.isNotEmpty) {
+              
+              validPositions.sort((a, b) => a.accuracy.compareTo(b.accuracy));
+              return validPositions.first;
+            }
+
+            
             positions.sort((a, b) => a.accuracy.compareTo(b.accuracy));
             return positions.first;
           }
         } catch (e) {
-          print('Error in position stream: $e');
+          print('Error getting streamed position: $e');
         }
 
         
-        final Position position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.bestForNavigation,
-          timeLimit: const Duration(seconds: 20),
-        );
-
-        
-        if (_isValidAccuracy(position.accuracy)) {
-          return position;
-        } else {
-          
-          await Future.delayed(const Duration(seconds: 2));
-          return await Geolocator.getCurrentPosition(
-            desiredAccuracy: LocationAccuracy.best,
-            timeLimit: const Duration(seconds: 10),
+        try {
+          final position = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.bestForNavigation,
+            timeLimit: const Duration(seconds: 20),
           );
+
+          if (_isValidAccuracy(position.accuracy)) {
+            return position;
+          }
+        } catch (e) {
+          print('Error getting direct position: $e');
         }
       } else {
         
         final LocationSettings locationSettings = AndroidSettings(
           accuracy: LocationAccuracy.high,
           distanceFilter: 0,
-          forceLocationManager: false, 
+          forceLocationManager: true, 
           intervalDuration: const Duration(seconds: 1),
         );
 
         try {
-          final positionStream = Geolocator.getPositionStream(
-            locationSettings: locationSettings,
-          ).timeout(
+          
+          final positions = await Geolocator.getPositionStream(
+              locationSettings: locationSettings
+          )
+              .take(5)
+              .timeout(
             const Duration(seconds: 10),
             onTimeout: (sink) => sink.close(),
-          );
-
-          final positions = await positionStream.take(5).toList();
-
-          
-          final validPositions = positions
-              .where((pos) => _isValidAccuracy(pos.accuracy))
+          )
               .toList();
-
-          if (validPositions.isNotEmpty) {
-            validPositions.sort((a, b) => a.accuracy.compareTo(b.accuracy));
-            return validPositions.first;
-          }
 
           if (positions.isNotEmpty) {
             positions.sort((a, b) => a.accuracy.compareTo(b.accuracy));
@@ -137,6 +145,12 @@ class LocationService {
           timeLimit: const Duration(seconds: 15),
         );
       }
+
+      
+      return await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.best,
+        timeLimit: const Duration(seconds: 15),
+      );
     } catch (e) {
       print('Error getting location: $e');
       return null;
@@ -145,23 +159,19 @@ class LocationService {
 
   
   Stream<Position> trackLocation() {
-    var locationSettings = const LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 5, 
-    );
-
     
+    LocationSettings locationSettings;
+
     if (Platform.isIOS) {
       locationSettings = AppleSettings(
         accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: 5,
+        distanceFilter: 5, 
         activityType: ActivityType.fitness,
         pauseLocationUpdatesAutomatically: false,
         allowBackgroundLocationUpdates: true,
         showBackgroundLocationIndicator: true,
       );
     } else {
-      
       locationSettings = AndroidSettings(
         accuracy: LocationAccuracy.high,
         distanceFilter: 5,
@@ -170,7 +180,8 @@ class LocationService {
       );
     }
 
+    
     return Geolocator.getPositionStream(locationSettings: locationSettings)
-        .where((position) => _isValidAccuracy(position.accuracy)); 
+        .where((position) => _isValidAccuracy(position.accuracy));
   }
 }

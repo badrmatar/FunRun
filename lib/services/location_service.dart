@@ -8,6 +8,7 @@ class LocationService {
   }
 
   Future<void> _initializeLocation() async {
+    
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
@@ -19,16 +20,9 @@ class LocationService {
   }
 
   
-  
   Future<Position?> getCurrentLocation() async {
     try {
-      if (Platform.isIOS) {
-        await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.lowest,
-          timeLimit: const Duration(seconds: 2),
-        ).catchError((_) {});
-        await Future.delayed(const Duration(seconds: 1));
-      }
+      
       return await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.bestForNavigation,
         timeLimit: const Duration(seconds: 15),

@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'dart:math';
+import 'dart:io'; 
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter/material.dart';
@@ -19,6 +20,7 @@ mixin RunTrackingMixin<T extends StatefulWidget> on State<T> {
   bool isTracking = false;
   bool autoPaused = false;
   StreamSubscription<Position>? locationSubscription;
+  Timer? _locationQualityCheckTimer; 
 
   
   final List<LatLng> routePoints = [];
@@ -37,14 +39,26 @@ mixin RunTrackingMixin<T extends StatefulWidget> on State<T> {
   LatLng? lastRecordedLocation;
 
   
+  int _poorQualityReadingsCount = 0;
+  Position? _lastGoodPosition;
+  final int _maxPoorReadings = 5; 
+
+  
+  final double _goodAccuracyThreshold = 30.0; 
+  final double _acceptableAccuracyThreshold = 50.0; 
+
+  
   void startRun(Position initialPosition) {
     setState(() {
       startLocation = initialPosition;
+      currentLocation = initialPosition; 
+      _lastGoodPosition = initialPosition; 
       isTracking = true;
       distanceCovered = 0.0;
       secondsElapsed = 0;
       autoPaused = false;
       routePoints.clear();
+      _poorQualityReadingsCount = 0;
 
       final startPoint = LatLng(initialPosition.latitude, initialPosition.longitude);
       routePoints.add(startPoint);
@@ -60,48 +74,182 @@ mixin RunTrackingMixin<T extends StatefulWidget> on State<T> {
     });
 
     
-    locationSubscription = locationService.trackLocation().listen((position) {
+    _startLocationQualityMonitoring();
+
+    
+    _startContinuousLocationTracking();
+  }
+
+  
+  void _startLocationQualityMonitoring() {
+    _locationQualityCheckTimer?.cancel();
+    _locationQualityCheckTimer = Timer.periodic(
+        const Duration(seconds: 30), 
+            (_) => _checkLocationQuality()
+    );
+  }
+
+  
+  void _checkLocationQuality() {
+    if (!isTracking || currentLocation == null) return;
+
+    
+    if (_poorQualityReadingsCount >= _maxPoorReadings) {
+      print('Location quality degraded - forcing refresh');
+
+      
+      _restartLocationTracking();
+
+      
+      _poorQualityReadingsCount = 0;
+    }
+  }
+
+  
+  void _restartLocationTracking() {
+    
+    locationSubscription?.cancel();
+
+    
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted && isTracking) {
+        _startContinuousLocationTracking();
+      }
+    });
+  }
+
+  
+  void _startContinuousLocationTracking() {
+    final LocationSettings locationSettings = Platform.isIOS
+        ? AppleSettings(
+      accuracy: LocationAccuracy.bestForNavigation,
+      distanceFilter: 5,
+      activityType: ActivityType.fitness,
+      pauseLocationUpdatesAutomatically: false,
+      allowBackgroundLocationUpdates: true,
+      showBackgroundLocationIndicator: true,
+    )
+        : AndroidSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 5,
+      forceLocationManager: true, 
+    );
+
+    
+    locationSubscription = Geolocator.getPositionStream(
+        locationSettings: locationSettings
+    ).listen((position) {
       if (!isTracking) return;
 
       
-      final speed = position.speed.clamp(0.0, double.infinity);
-      _handleAutoPauseLogic(speed);
+      bool isGoodQuality = _isGoodQualityReading(position);
 
-      
-      if (lastRecordedLocation != null && !autoPaused) {
-        final newDistance = calculateDistance(
-          lastRecordedLocation!.latitude,
-          lastRecordedLocation!.longitude,
-          position.latitude,
-          position.longitude,
+      if (isGoodQuality) {
+        
+        _poorQualityReadingsCount = 0;
+
+        
+        _lastGoodPosition = position;
+
+        
+        final speed = position.speed.clamp(0.0, double.infinity);
+        _handleAutoPauseLogic(speed);
+
+        
+        if (lastRecordedLocation != null && !autoPaused) {
+          final newDistance = calculateDistance(
+            lastRecordedLocation!.latitude,
+            lastRecordedLocation!.longitude,
+            position.latitude,
+            position.longitude,
+          );
+          if (newDistance > 5.0) {  
+            setState(() {
+              distanceCovered += newDistance;
+              lastRecordedLocation = LatLng(position.latitude, position.longitude);
+            });
+          }
+        }
+
+        
+        setState(() {
+          currentLocation = position;
+          final newPoint = LatLng(position.latitude, position.longitude);
+          routePoints.add(newPoint);
+          routePolyline = routePolyline.copyWith(pointsParam: routePoints);
+        });
+
+        
+        mapController?.animateCamera(
+          CameraUpdate.newLatLng(LatLng(position.latitude, position.longitude)),
         );
-        if (newDistance > 20.0) {
+      } else {
+        
+        _poorQualityReadingsCount++;
+
+        print('Poor quality GPS reading: ${position.accuracy}m (${_poorQualityReadingsCount}/$_maxPoorReadings)');
+
+        
+        if (_lastGoodPosition != null && _poorQualityReadingsCount < _maxPoorReadings * 2) {
+          
           setState(() {
-            distanceCovered += newDistance;
-            lastRecordedLocation = LatLng(position.latitude, position.longitude);
+            currentLocation = position; 
           });
         }
       }
+    }, onError: (error) {
+      print('Error in location tracking: $error');
 
       
-      setState(() {
-        currentLocation = position;
-        final newPoint = LatLng(position.latitude, position.longitude);
-        routePoints.add(newPoint);
-        routePolyline = routePolyline.copyWith(pointsParam: routePoints);
-      });
+      _poorQualityReadingsCount++;
 
       
-      mapController?.animateCamera(
-        CameraUpdate.newLatLng(LatLng(position.latitude, position.longitude)),
-      );
+      if (_poorQualityReadingsCount >= _maxPoorReadings) {
+        _restartLocationTracking();
+        _poorQualityReadingsCount = 0;
+      }
     });
+  }
+
+  
+  bool _isGoodQualityReading(Position position) {
+    
+    if (Platform.isIOS) {
+      
+      if (position.accuracy == 1440.0) return false;
+      if (position.accuracy == 65.0) return false;
+      if (position.accuracy >= 100.0) return false;
+
+      
+      if (position.speed < 0) return false; 
+
+      
+      if (_lastGoodPosition != null) {
+        final double jumpDistance = Geolocator.distanceBetween(
+            _lastGoodPosition!.latitude,
+            _lastGoodPosition!.longitude,
+            position.latitude,
+            position.longitude
+        );
+
+        
+        
+        if (jumpDistance > 300 && position.speed < 20) {
+          print('Detected position jump of ${jumpDistance.round()}m - ignoring');
+          return false;
+        }
+      }
+    }
+
+    
+    return position.accuracy <= _acceptableAccuracyThreshold;
   }
 
   
   void endRun() {
     runTimer?.cancel();
     locationSubscription?.cancel();
+    _locationQualityCheckTimer?.cancel();
     isTracking = false;
     endLocation = currentLocation;
   }
@@ -113,7 +261,7 @@ mixin RunTrackingMixin<T extends StatefulWidget> on State<T> {
     final dLng = (endLng - startLng) * (pi / 180);
     final a = sin(dLat / 2) * sin(dLat / 2) +
         cos(startLat * (pi / 180)) * cos(endLat * (pi / 180)) *
-        sin(dLng / 2) * sin(dLng / 2);
+            sin(dLng / 2) * sin(dLng / 2);
     final c = 2 * atan2(sqrt(a), sqrt(1 - a));
     return earthRadius * c;
   }
@@ -144,6 +292,7 @@ mixin RunTrackingMixin<T extends StatefulWidget> on State<T> {
   void dispose() {
     runTimer?.cancel();
     locationSubscription?.cancel();
+    _locationQualityCheckTimer?.cancel();
     super.dispose();
   }
 }

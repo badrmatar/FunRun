@@ -29,58 +29,86 @@ class ActiveRunPage extends StatefulWidget {
 
 class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
   
-  final double _acceptableAccuracyThreshold = 60.0; 
-  bool _hasGoodFix = false; 
+  final double _targetAccuracy = 35.0; 
+  final Duration _minWaitingDuration = const Duration(seconds: 3);
+  final Duration _fallbackDuration = const Duration(seconds: 30);
+
+  
+  bool _hasGoodFix = false;
+  bool _isWaiting = true;
+  DateTime _waitingStartTime = DateTime.now();
   StreamSubscription<Position>? _fixSubscription;
+
+  
   String _loadingDebug = "Initializing GPS...";
 
   @override
   void initState() {
     super.initState();
     
-    _fixSubscription = locationService.trackLocation().listen((position) {
-      
-      setState(() {
-        currentLocation = position;
-        _loadingDebug =
-        "Current accuracy: ${position.accuracy.toStringAsFixed(1)}m";
-      });
-
-      
-      if (position.accuracy < _acceptableAccuracyThreshold) {
-        
-        _fixSubscription?.cancel();
-        _hasGoodFix = true;
-        
-        startRun(position);
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'GPS fix acquired with ${position.accuracy.toStringAsFixed(1)}m accuracy'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-        
-        setState(() {});
-      }
-    });
-
+    _waitingStartTime = DateTime.now();
+    _startWaitingForFix();
     
-    Timer(const Duration(seconds: 30), () {
+    Timer(_fallbackDuration, () {
       if (!_hasGoodFix && currentLocation != null) {
         _fixSubscription?.cancel();
         _hasGoodFix = true;
+        
         startRun(currentLocation!);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-                'Fallback: using current accuracy: ${currentLocation!.accuracy.toStringAsFixed(1)}m'),
+                'Fallback: Run started with accuracy: ${currentLocation!.accuracy.toStringAsFixed(1)}m'),
             duration: const Duration(seconds: 2),
           ),
         );
-        setState(() {});
+        setState(() {
+          _isWaiting = false;
+        });
       }
+    });
+  }
+
+  
+  void _startWaitingForFix() {
+    _fixSubscription = locationService.trackLocation().listen((position) {
+      
+      if (position.timestamp == null ||
+          !position.timestamp!.isAfter(_waitingStartTime)) {
+        return;
+      }
+
+      
+      setState(() {
+        currentLocation = position;
+        _loadingDebug =
+        "Current Accuracy: ${position.accuracy.toStringAsFixed(1)}m";
+      });
+
+      final elapsed = DateTime.now().difference(_waitingStartTime);
+
+      if (elapsed >= _minWaitingDuration &&
+          position.accuracy < _targetAccuracy) {
+        
+        _fixSubscription?.cancel();
+        _hasGoodFix = true;
+        startRun(position);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Run started with accuracy: ${position.accuracy.toStringAsFixed(1)}m'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        setState(() {
+          _isWaiting = false;
+        });
+      }
+    }, onError: (error) {
+      
+      setState(() {
+        _loadingDebug = "Error: $error";
+      });
     });
   }
 
@@ -170,9 +198,9 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
   @override
   Widget build(BuildContext context) {
     
-    if (!_hasGoodFix) {
+    if (_isWaiting) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Acquiring GPS Signal')),
+        appBar: AppBar(title: const Text('Waiting for GPS Fix')),
         body: Container(
           color: Colors.black,
           child: Center(
@@ -240,7 +268,6 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
                 ),
               ),
             ),
-          
         ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,

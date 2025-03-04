@@ -29,6 +29,12 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
   Position? _bestPosition;
   double _signalQualityPercentage = 0;
   Timer? _elapsedTimer;
+  Timer? _autoStartTimer;
+
+  
+  static const int AUTO_START_SECONDS = 5;
+  static const double ACCEPTABLE_ACCURACY = 60.0; 
+  static const double GOOD_ACCURACY = 50.0; 
 
   @override
   void initState() {
@@ -41,6 +47,19 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
         setState(() {
           _elapsedSeconds++;
         });
+
+        
+        if (_elapsedSeconds >= AUTO_START_SECONDS && _bestPosition != null) {
+          if (_bestPosition!.accuracy <= ACCEPTABLE_ACCURACY) {
+            
+            _autoStartTimer?.cancel();
+            _autoStartTimer = Timer(const Duration(milliseconds: 500), () {
+              if (mounted) {
+                _startRun();
+              }
+            });
+          }
+        }
       }
     });
   }
@@ -101,11 +120,23 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
         });
 
         
-        if (_bestPosition != null && _bestPosition!.accuracy < 50) {
+        if (_bestPosition != null && _bestPosition!.accuracy < GOOD_ACCURACY) {
           setState(() {
             _isWaitingForSignal = false;
             _hasGoodSignal = true;
             _statusMessage = "GPS signal acquired! Ready to start.";
+          });
+        }
+
+        
+        if (_elapsedSeconds >= AUTO_START_SECONDS &&
+            _bestPosition != null &&
+            _bestPosition!.accuracy <= ACCEPTABLE_ACCURACY) {
+          _autoStartTimer?.cancel();
+          _autoStartTimer = Timer(const Duration(milliseconds: 500), () {
+            if (mounted) {
+              _startRun();
+            }
           });
         }
       }
@@ -114,6 +145,10 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
 
   void _startRun() {
     if (_bestPosition == null) return;
+
+    
+    _elapsedTimer?.cancel();
+    _autoStartTimer?.cancel();
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
@@ -130,6 +165,7 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
   void dispose() {
     _locationService.stopQualityMonitoring();
     _elapsedTimer?.cancel();
+    _autoStartTimer?.cancel();
     super.dispose();
   }
 
@@ -225,15 +261,27 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
                   fontSize: 14,
                 ),
               ),
-              Text(
-                _bestPosition!.accuracy < 50
-                    ? 'Good accuracy achieved!'
-                    : 'Waiting for better accuracy (need < 50m)',
-                style: TextStyle(
-                  color: _bestPosition!.accuracy < 50 ? Colors.green : Colors.orange,
-                  fontSize: 14,
+              if (_elapsedSeconds >= AUTO_START_SECONDS)
+                Text(
+                  _bestPosition!.accuracy <= ACCEPTABLE_ACCURACY
+                      ? 'Auto-starting run with current accuracy...'
+                      : 'Waiting for better accuracy (need < ${ACCEPTABLE_ACCURACY}m)',
+                  style: TextStyle(
+                    color: _bestPosition!.accuracy <= ACCEPTABLE_ACCURACY ? Colors.green : Colors.orange,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                )
+              else
+                Text(
+                  _bestPosition!.accuracy < GOOD_ACCURACY
+                      ? 'Good accuracy achieved!'
+                      : 'Waiting for better accuracy (need < ${GOOD_ACCURACY}m)',
+                  style: TextStyle(
+                    color: _bestPosition!.accuracy < GOOD_ACCURACY ? Colors.green : Colors.orange,
+                    fontSize: 14,
+                  ),
                 ),
-              ),
             ],
             const SizedBox(height: 48),
             

@@ -105,6 +105,7 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
   }
 
   void _monitorLocationQuality() {
+    
     _locationService.qualityStream.listen((quality) {
       if (!mounted) return;
 
@@ -113,32 +114,56 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
         _updateSignalQuality(quality);
         _statusMessage = _locationService.getQualityDescription(quality);
       });
+    });
 
-      if (_locationService.lastPosition != null) {
-        setState(() {
-          _bestPosition = _locationService.lastPosition;
-        });
+    
+    _locationService.positionStream.listen((position) {
+      if (!mounted) return;
 
+      
+      print('Position update: lat=${position.latitude}, lng=${position.longitude}, acc=${position.accuracy}m');
+
+      
+      setState(() {
         
-        if (_bestPosition != null && _bestPosition!.accuracy < GOOD_ACCURACY) {
-          setState(() {
+        if (_bestPosition == null || position.accuracy < _bestPosition!.accuracy) {
+          _bestPosition = position;
+
+          
+          print('New best position! Accuracy: ${position.accuracy}m');
+
+          
+          if (position.accuracy < GOOD_ACCURACY) {
             _isWaitingForSignal = false;
             _hasGoodSignal = true;
             _statusMessage = "GPS signal acquired! Ready to start.";
-          });
+          } else if (position.accuracy < ACCEPTABLE_ACCURACY) {
+            _isWaitingForSignal = false;
+            _hasGoodSignal = false;
+            _statusMessage = "Acceptable GPS signal. Can auto-start soon.";
+          }
         }
 
         
-        if (_elapsedSeconds >= AUTO_START_SECONDS &&
-            _bestPosition != null &&
-            _bestPosition!.accuracy <= ACCEPTABLE_ACCURACY) {
-          _autoStartTimer?.cancel();
-          _autoStartTimer = Timer(const Duration(milliseconds: 500), () {
-            if (mounted) {
-              _startRun();
-            }
-          });
+        
+        if (_bestPosition != null) {
+          
+          if (_elapsedSeconds >= AUTO_START_SECONDS && _bestPosition!.accuracy <= ACCEPTABLE_ACCURACY) {
+            _statusMessage = "Auto-starting with accuracy: ${_bestPosition!.accuracy.toStringAsFixed(1)}m";
+          }
         }
+      });
+
+      
+      if (_elapsedSeconds >= AUTO_START_SECONDS &&
+          _bestPosition != null &&
+          _bestPosition!.accuracy <= ACCEPTABLE_ACCURACY) {
+        _autoStartTimer?.cancel();
+        _autoStartTimer = Timer(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            _startRun();
+          }
+        });
       }
     });
   }
@@ -163,9 +188,13 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
 
   @override
   void dispose() {
+    
     _locationService.stopQualityMonitoring();
     _elapsedTimer?.cancel();
     _autoStartTimer?.cancel();
+
+    
+    print('RunLoadingPage disposed, all resources cleaned up');
     super.dispose();
   }
 
@@ -254,13 +283,23 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
             ),
             if (_bestPosition != null) ...[
               const SizedBox(height: 16),
-              Text(
-                'Accuracy: ${_bestPosition!.accuracy.toStringAsFixed(1)}m',
-                style: TextStyle(
-                  color: Colors.grey[400],
-                  fontSize: 14,
-                ),
+              
+              TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0, end: _bestPosition!.accuracy),
+                duration: const Duration(milliseconds: 500),
+                builder: (context, value, child) {
+                  return Text(
+                    'Current Accuracy: ${value.toStringAsFixed(1)}m',
+                    style: TextStyle(
+                      color: value <= GOOD_ACCURACY ? Colors.green :
+                      value <= ACCEPTABLE_ACCURACY ? Colors.orange : Colors.red,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  );
+                },
               ),
+              const SizedBox(height: 8),
               if (_elapsedSeconds >= AUTO_START_SECONDS)
                 Text(
                   _bestPosition!.accuracy <= ACCEPTABLE_ACCURACY
@@ -280,6 +319,34 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
                   style: TextStyle(
                     color: _bestPosition!.accuracy < GOOD_ACCURACY ? Colors.green : Colors.orange,
                     fontSize: 14,
+                  ),
+                ),
+              
+              if (_locationService.lastPosition != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        _locationService.lastPosition!.accuracy < _bestPosition!.accuracy
+                            ? Icons.trending_down : Icons.trending_up,
+                        color: _locationService.lastPosition!.accuracy < _bestPosition!.accuracy
+                            ? Colors.green : Colors.orange,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _locationService.lastPosition!.accuracy < _bestPosition!.accuracy
+                            ? 'Signal improving' : 'Signal degrading',
+                        style: TextStyle(
+                          color: _locationService.lastPosition!.accuracy < _bestPosition!.accuracy
+                              ? Colors.green : Colors.orange,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
             ],

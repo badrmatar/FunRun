@@ -1,3 +1,4 @@
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
@@ -27,26 +28,62 @@ class ActiveRunPage extends StatefulWidget {
 }
 
 class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
+  
+  final int _freshnessThresholdSeconds = 5;
+  
+  final double _acceptableAccuracyThreshold = 50.0;
+
+  StreamSubscription<Position>? _startRunSubscription;
+
   @override
   void initState() {
     super.initState();
     
-    locationService.getCurrentLocation().then((position) {
-      if (position != null && mounted) {
-        setState(() {
-          currentLocation = position;
-        });
+    
+    _startRunSubscription = locationService.trackLocation().listen((position) {
+      if (position.timestamp == null) return; 
+      final age = DateTime.now().difference(position.timestamp!).inSeconds;
+      
+      
+
+      
+      setState(() {
+        currentLocation = position;
+      });
+
+      
+      
+      if (!isTracking &&
+          age <= _freshnessThresholdSeconds &&
+          position.accuracy < _acceptableAccuracyThreshold) {
         
-        if (position.accuracy < 20) {
-          startRun(position);
-        }
+        _startRunSubscription?.cancel();
+        startRun(position);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Run started with accuracy: ${position.accuracy.toStringAsFixed(1)}m',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     });
 
     
+    
     Timer(const Duration(seconds: 30), () {
-      if (currentLocation != null && mounted && !isTracking) {
+      if (!isTracking && currentLocation != null) {
+        _startRunSubscription?.cancel();
         startRun(currentLocation!);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Fallback: Run started with accuracy: ${currentLocation!.accuracy.toStringAsFixed(1)}m',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     });
   }
@@ -129,6 +166,12 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
   }
 
   @override
+  void dispose() {
+    _startRunSubscription?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final distanceKm = distanceCovered / 1000;
     return Scaffold(
@@ -139,7 +182,7 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
             initialCameraPosition: CameraPosition(
               target: currentLocation != null
                   ? LatLng(currentLocation!.latitude, currentLocation!.longitude)
-                  : const LatLng(37.4219999, -122.0840575), 
+                  : const LatLng(37.4219999, -122.0840575),
               zoom: 15,
             ),
             myLocationEnabled: true,

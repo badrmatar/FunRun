@@ -139,6 +139,8 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
       distanceFilter: 0,
       activityType: ActivityType.fitness,
       pauseLocationUpdatesAutomatically: false,
+      allowBackgroundLocationUpdates: true,
+      showBackgroundLocationIndicator: true,
     )
         : AndroidSettings(
       accuracy: LocationAccuracy.high,

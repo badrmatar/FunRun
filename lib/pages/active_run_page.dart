@@ -297,7 +297,6 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
     if (!mounted) return;
 
     setState(() => _debugStatus = "Verifying position before starting...");
-
     try {
       
       final finalPosition = await Geolocator.getCurrentPosition(
@@ -306,6 +305,20 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
       );
 
       
+      if (finalPosition.timestamp == null ||
+          DateTime.now().difference(finalPosition.timestamp!).inSeconds > 5) {
+        setState(() => _debugStatus =
+        "Verified position is stale (${finalPosition.timestamp == null ? 'unknown' : DateTime.now().difference(finalPosition.timestamp!).inSeconds}s old).");
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Location reading is stale. Please wait for a fresh reading."),
+            duration: Duration(seconds: 5),
+          ),
+        );
+        _initializeLocationTracking();
+        return;
+      }
+
       if (finalPosition.accuracy <= _acceptableAccuracyThreshold &&
           _isValidAccuracy(finalPosition.accuracy)) {
         position = finalPosition;
@@ -320,15 +333,16 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
     }
 
     
-    if (position.accuracy > _acceptableAccuracyThreshold) {
+    if (position.accuracy > _acceptableAccuracyThreshold ||
+        (position.timestamp != null &&
+            DateTime.now().difference(position.timestamp!).inSeconds > 5)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-              'GPS accuracy (${position.accuracy.toStringAsFixed(1)}m) is above the required threshold. Please try again in an open area.'),
+              'GPS reading is not fresh or accurate (accuracy: ${position.accuracy.toStringAsFixed(1)}m). Please try again in an open area.'),
           duration: const Duration(seconds: 5),
         ),
       );
-      
       _initializeLocationTracking();
       return;
     }

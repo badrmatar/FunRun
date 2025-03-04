@@ -22,7 +22,7 @@ class LocationService {
   StreamSubscription<Position>? _positionSubscription;
   Position? _lastPosition;
   LocationQuality _currentQuality = LocationQuality.unusable;
-  TrackingMode _currentMode = TrackingMode.standard;
+  TrackingMode _currentMode = TrackingMode.high_accuracy; 
   bool _isTracking = false;
 
   
@@ -38,65 +38,30 @@ class LocationService {
   KalmanFilter2D? _kalmanFilter;
 
   
+  int stillCounter = 0;
+  final double pauseThreshold = 0.5;
+  final double resumeThreshold = 1.0;
+
+  
   LocationSettings _getLocationSettings() {
+    
+    
     if (Platform.isIOS) {
-      
-      switch (_currentMode) {
-        case TrackingMode.high_accuracy:
-          return AppleSettings(
-            accuracy: LocationAccuracy.bestForNavigation,
-            distanceFilter: 5,
-            activityType: ActivityType.fitness,
-            pauseLocationUpdatesAutomatically: false,
-            allowBackgroundLocationUpdates: true,
-            showBackgroundLocationIndicator: true,
-          );
-        case TrackingMode.battery_saving:
-          return AppleSettings(
-            accuracy: LocationAccuracy.reduced, 
-            distanceFilter: 15,
-            activityType: ActivityType.fitness,
-            pauseLocationUpdatesAutomatically: true,
-            allowBackgroundLocationUpdates: true,
-            showBackgroundLocationIndicator: true,
-          );
-        case TrackingMode.standard:
-        default:
-          return AppleSettings(
-            accuracy: LocationAccuracy.best,
-            distanceFilter: 10,
-            activityType: ActivityType.fitness,
-            pauseLocationUpdatesAutomatically: false,
-            allowBackgroundLocationUpdates: true,
-            showBackgroundLocationIndicator: true,
-          );
-      }
+      return AppleSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 5,
+        activityType: ActivityType.fitness,
+        pauseLocationUpdatesAutomatically: false,
+        allowBackgroundLocationUpdates: true,
+        showBackgroundLocationIndicator: true,
+      );
     } else {
-      
-      switch (_currentMode) {
-        case TrackingMode.high_accuracy:
-          return AndroidSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: 5,
-            forceLocationManager: false,
-            intervalDuration: const Duration(seconds: 1),
-          );
-        case TrackingMode.battery_saving:
-          return AndroidSettings(
-            accuracy: LocationAccuracy.reduced, 
-            distanceFilter: 15,
-            forceLocationManager: false,
-            intervalDuration: const Duration(seconds: 3),
-          );
-        case TrackingMode.standard:
-        default:
-          return AndroidSettings(
-            accuracy: LocationAccuracy.best,
-            distanceFilter: 10,
-            forceLocationManager: false,
-            intervalDuration: const Duration(seconds: 2),
-          );
-      }
+      return AndroidSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 5,
+        forceLocationManager: false,
+        intervalDuration: const Duration(seconds: 1),
+      );
     }
   }
 
@@ -163,8 +128,8 @@ class LocationService {
   void setTrackingMode(TrackingMode mode) {
     if (_currentMode != mode) {
       _currentMode = mode;
+      
       if (_isTracking) {
-        
         _stopTracking();
         _startTracking();
       }
@@ -203,6 +168,8 @@ class LocationService {
 
     final locationSettings = _getLocationSettings();
 
+    print('LocationService: Starting position tracking with ${_currentMode.toString()}');
+
     _positionSubscription = Geolocator.getPositionStream(
         locationSettings: locationSettings
     ).listen((Position position) {
@@ -210,20 +177,25 @@ class LocationService {
       final quality = _assessLocationQuality(position);
 
       
-      if (quality != LocationQuality.unusable) {
-        
-        final filteredPosition = _filterPosition(position);
-        _lastPosition = filteredPosition;
-        _locationController.add(filteredPosition);
-      }
+      final filteredPosition = _filterPosition(position);
+      _lastPosition = filteredPosition;
+
+      
+      _locationController.add(filteredPosition);
 
       
       if (quality != _currentQuality) {
         _currentQuality = quality;
         _qualityController.add(quality);
         _statusController.add(getQualityDescription(quality));
+
+        print('LocationService: Quality changed to ${quality.toString()} with accuracy ${position.accuracy}m');
       }
-    });
+    },
+        onError: (error) {
+          print('LocationService error: $error');
+          _statusController.add('Location error: $error');
+        });
 
     _isTracking = true;
   }
@@ -233,14 +205,22 @@ class LocationService {
     _positionSubscription?.cancel();
     _positionSubscription = null;
     _isTracking = false;
+    print('LocationService: Stopped position tracking');
   }
 
   
   Future<void> startQualityMonitoring() async {
-    if (_isTracking) return;
+    if (_isTracking) {
+      print('LocationService: Already tracking, not restarting');
+      return;
+    }
 
-    await _checkAndRequestPermission();
-    _startTracking();
+    final hasPermission = await _checkAndRequestPermission();
+    if (hasPermission) {
+      _startTracking();
+    } else {
+      _statusController.add('Location permission denied');
+    }
   }
 
   
@@ -254,9 +234,11 @@ class LocationService {
       initialX: position.latitude,
       initialY: position.longitude,
       
-      processNoise: 1e-5,      
-      measurementNoise: 15.0,   
+      processNoise: 1e-5,
+      
+      measurementNoise: 15.0,
     );
+    print('LocationService: Initialized Kalman filter with starting position');
   }
 
   
@@ -266,58 +248,6 @@ class LocationService {
       return false;
     }
     return true;
-  }
-
-  
-  Future<bool> waitForGoodAccuracy({
-    required Duration timeout,
-    required Function(int, LocationQuality) onProgress
-  }) async {
-    if (!_isTracking) {
-      await startQualityMonitoring();
-    }
-
-    
-    if (_currentQuality == LocationQuality.good ||
-        _currentQuality == LocationQuality.excellent) {
-      return true;
-    }
-
-    
-    final completer = Completer<bool>();
-
-    
-    final timer = Timer(timeout, () {
-      if (!completer.isCompleted) {
-        completer.complete(false);
-      }
-    });
-
-    
-    int secondsElapsed = 0;
-    final progressTimer = Timer.periodic(const Duration(seconds: 1), (t) {
-      secondsElapsed++;
-      onProgress(secondsElapsed, _currentQuality);
-    });
-
-    
-    final subscription = _qualityController.stream.listen((quality) {
-      if (quality == LocationQuality.good || quality == LocationQuality.excellent) {
-        if (!completer.isCompleted) {
-          completer.complete(true);
-        }
-      }
-    });
-
-    
-    final result = await completer.future;
-
-    
-    timer.cancel();
-    progressTimer.cancel();
-    subscription.cancel();
-
-    return result;
   }
 
   
@@ -351,12 +281,56 @@ class LocationService {
       final hasPermission = await _checkAndRequestPermission();
       if (!hasPermission) return null;
 
-      return await Geolocator.getCurrentPosition(
+      print('LocationService: Getting current location...');
+
+      
+      final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.bestForNavigation,
         timeLimit: const Duration(seconds: 15),
       );
+
+      print('LocationService: Got position with accuracy ${position.accuracy}m');
+
+      
+      _lastPosition = position;
+      _currentQuality = _assessLocationQuality(position);
+
+      
+      _locationController.add(position);
+      _qualityController.add(_currentQuality);
+
+      return position;
     } catch (e) {
+      print('LocationService: Error getting current location: $e');
       _statusController.add('Error getting location: $e');
+      return null;
+    }
+  }
+
+  
+  Future<Position?> refreshCurrentLocation() async {
+    try {
+      
+      
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.bestForNavigation,
+        timeLimit: const Duration(seconds: 5),
+      );
+
+      print('LocationService: Refreshed position with accuracy ${position.accuracy}m');
+
+      
+      _lastPosition = position;
+      _currentQuality = _assessLocationQuality(position);
+
+      
+      _locationController.add(position);
+      _qualityController.add(_currentQuality);
+
+      return position;
+    } catch (e) {
+      
+      print('LocationService: Refresh location attempt: $e');
       return null;
     }
   }
@@ -375,5 +349,6 @@ class LocationService {
     _locationController.close();
     _qualityController.close();
     _statusController.close();
+    print('LocationService: Disposed');
   }
 }

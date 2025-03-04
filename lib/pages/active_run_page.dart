@@ -55,11 +55,9 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
     if (Platform.isIOS) {
       
       if (accuracy == 65.0) return false;
-
       
       if (accuracy == 10.0 && _locationAttempts <= 2) return false;
       if (accuracy == 100.0) return false;
-
       
       if (accuracy > 200.0) return false;
     } else {
@@ -170,12 +168,11 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
     
     if (Platform.isIOS) {
       setState(() => _debugStatus = "Resetting iOS location cache...");
-
       
       Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.lowest,
-          timeLimit: const Duration(seconds: 2)
-      ).catchError((_) {
+          timeLimit: const Duration(seconds: 2))
+          .catchError((_) {
         
       }).then((_) {
         
@@ -201,47 +198,47 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
 
     
     _locationSamplingSubscription = Geolocator.getPositionStream(
-        locationSettings: locationSettings
+      locationSettings: locationSettings,
     ).listen(
-            (position) {
-          if (!mounted) {
-            _locationSamplingSubscription?.cancel();
-            return;
-          }
-
-          _locationAttempts++;
-          setState(() {
-            currentLocation = position;
-            _debugStatus = "Sample #$_locationAttempts: ${position.accuracy.toStringAsFixed(1)}m";
-          });
-
-          
-          if (_isValidAccuracy(position.accuracy)) {
-            _positionSamples.add(position);
-          }
-
-          
-          if (position.accuracy <= _acceptableAccuracyThreshold) {
-            _locationSamplingSubscription?.cancel();
-            _startRunWithPosition(position); 
-            return;
-          }
-
-          
-          if (position.accuracy == 1440.0) {
-            setState(() {
-              _debugStatus = "Received default iOS value (1440m). Waiting for better signal...";
-            });
-          } else if (position.accuracy > _acceptableAccuracyThreshold) {
-            setState(() {
-              _debugStatus = "Accuracy: ${position.accuracy.toStringAsFixed(1)}m - need < 50m";
-            });
-          }
-        },
-        onError: (error) {
-          setState(() => _debugStatus = "Location error: $error");
-          
+          (position) {
+        if (!mounted) {
+          _locationSamplingSubscription?.cancel();
+          return;
         }
+
+        _locationAttempts++;
+        setState(() {
+          currentLocation = position;
+          _debugStatus = "Sample #$_locationAttempts: ${position.accuracy.toStringAsFixed(1)}m";
+        });
+
+        
+        if (_isValidAccuracy(position.accuracy)) {
+          _positionSamples.add(position);
+        }
+
+        
+        if (position.accuracy <= _acceptableAccuracyThreshold) {
+          _locationSamplingSubscription?.cancel();
+          _startRunWithPosition(position); 
+          return;
+        }
+
+        
+        if (position.accuracy == 1440.0) {
+          setState(() {
+            _debugStatus = "Received default iOS value (1440m). Waiting for better signal...";
+          });
+        } else if (position.accuracy > _acceptableAccuracyThreshold) {
+          setState(() {
+            _debugStatus = "Accuracy: ${position.accuracy.toStringAsFixed(1)}m - need < 50m";
+          });
+        }
+      },
+      onError: (error) {
+        setState(() => _debugStatus = "Location error: $error");
+        
+      },
     );
   }
 
@@ -253,9 +250,7 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
       
       final position = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.best,
-          timeLimit: const Duration(seconds: 15)
-      );
-
+          timeLimit: const Duration(seconds: 15));
       if (mounted) {
         setState(() {
           currentLocation = position;
@@ -263,16 +258,19 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
         });
 
         
-        if (_isValidAccuracy(position.accuracy) && position.accuracy <= _acceptableAccuracyThreshold) {
+        if (_isValidAccuracy(position.accuracy) &&
+            position.accuracy <= _acceptableAccuracyThreshold) {
           _startRunWithPosition(position);
         } else {
           setState(() {
             _isInitializing = false;
-            _debugStatus = "GPS accuracy of ${position.accuracy.toStringAsFixed(1)}m exceeds the required 50m threshold";
+            _debugStatus =
+            "GPS accuracy of ${position.accuracy.toStringAsFixed(1)}m exceeds the required 50m threshold";
           });
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('GPS accuracy is too poor (must be under 50m). Please try again in an open area with clear sky view.'),
+              content: Text(
+                  'GPS accuracy is too poor (must be under 50m). Please try again in an open area with clear sky view.'),
               duration: Duration(seconds: 5),
             ),
           );
@@ -303,23 +301,36 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
     try {
       
       final finalPosition = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.bestForNavigation,
-          timeLimit: const Duration(seconds: 10)
+        desiredAccuracy: LocationAccuracy.bestForNavigation,
+        timeLimit: const Duration(seconds: 10),
       );
 
       
-      if (_isValidAccuracy(finalPosition.accuracy) &&
-          finalPosition.accuracy <= _acceptableAccuracyThreshold) {
+      if (finalPosition.accuracy <= _acceptableAccuracyThreshold &&
+          _isValidAccuracy(finalPosition.accuracy)) {
         position = finalPosition;
         setState(() => _debugStatus = "Using verified position!");
-      } else if (finalPosition.accuracy < position.accuracy) {
-        
-        position = finalPosition;
-        setState(() => _debugStatus = "Using improved position!");
+      } else {
+        setState(() => _debugStatus =
+        "Verified position accuracy ${finalPosition.accuracy.toStringAsFixed(1)}m exceeds threshold.");
       }
     } catch (e) {
+      setState(() => _debugStatus =
+      "Using best available position (${position.accuracy.toStringAsFixed(1)}m) due to error: $e");
+    }
+
+    
+    if (position.accuracy > _acceptableAccuracyThreshold) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'GPS accuracy (${position.accuracy.toStringAsFixed(1)}m) is above the required threshold. Please try again in an open area.'),
+          duration: const Duration(seconds: 5),
+        ),
+      );
       
-      setState(() => _debugStatus = "Using best available position (${position.accuracy.toStringAsFixed(1)}m)");
+      _initializeLocationTracking();
+      return;
     }
 
     
@@ -333,7 +344,8 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Starting run with accuracy: ${position.accuracy.toStringAsFixed(1)}m'),
+        content:
+        Text('Starting run with accuracy: ${position.accuracy.toStringAsFixed(1)}m'),
         duration: const Duration(seconds: 2),
       ),
     );
@@ -436,104 +448,105 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
         body: Container(
           color: Colors.black.withOpacity(0.7),
           child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text(
-                  'Waiting for GPS signal...',
-                  style: TextStyle(
-                    fontSize: 22,
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                CircularProgressIndicator(
-                  color: currentLocation != null ? Colors.green : Colors.white,
-                ),
-                const SizedBox(height: 16),
-                
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  margin: const EdgeInsets.symmetric(horizontal: 20),
-                  decoration: BoxDecoration(
-                    color: Colors.black45,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    _debugStatus,
-                    style: const TextStyle(color: Colors.white),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (currentLocation != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: Text(
-                      'Location: ${currentLocation!.latitude.toStringAsFixed(6)}, ${currentLocation!.longitude.toStringAsFixed(6)}',
-                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'Waiting for GPS signal...',
+                    style: TextStyle(
+                      fontSize: 22,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                if (currentLocation != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
+                  const SizedBox(height: 20),
+                  CircularProgressIndicator(
+                    color: currentLocation != null ? Colors.green : Colors.white,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    margin: const EdgeInsets.symmetric(horizontal: 20),
+                    decoration: BoxDecoration(
+                      color: Colors.black45,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                     child: Text(
-                      'Accuracy: ${currentLocation!.accuracy.toStringAsFixed(1)} meters',
+                      _debugStatus,
                       style: const TextStyle(color: Colors.white),
+                      textAlign: TextAlign.center,
                     ),
                   ),
-                if (_positionSamples.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: Text(
-                      'Samples collected: ${_positionSamples.length}',
-                      style: const TextStyle(color: Colors.white70),
+                  const SizedBox(height: 12),
+                  if (currentLocation != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Text(
+                        'Location: ${currentLocation!.latitude.toStringAsFixed(6)}, ${currentLocation!.longitude.toStringAsFixed(6)}',
+                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
                     ),
+                  if (currentLocation != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Text(
+                        'Accuracy: ${currentLocation!.accuracy.toStringAsFixed(1)} meters',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  if (_positionSamples.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Text(
+                        'Samples collected: ${_positionSamples.length}',
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                    ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () {
+                      _locationAttempts = 0;
+                      _positionSamples.clear();
+                      _initializeLocationTracking(); 
+                    },
+                    child: const Text('Retry Location'),
                   ),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: () {
-                    _locationAttempts = 0;
-                    _positionSamples.clear();
-                    _initializeLocationTracking(); 
-                  },
-                  child: const Text('Retry Location'),
-                ),
-                if (currentLocation != null)
-                  Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Text(
-                          'Current accuracy: ${currentLocation!.accuracy.toStringAsFixed(1)}m\nWaiting for accuracy < 50m',
-                          style: TextStyle(
-                              color: currentLocation!.accuracy <= _acceptableAccuracyThreshold
-                                  ? Colors.green
-                                  : Colors.orange,
-                              fontWeight: FontWeight.bold
+                  if (currentLocation != null)
+                    Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text(
+                            'Current accuracy: ${currentLocation!.accuracy.toStringAsFixed(1)}m\nWaiting for accuracy < 50m',
+                            style: TextStyle(
+                                color: currentLocation!.accuracy <= _acceptableAccuracyThreshold
+                                    ? Colors.green
+                                    : Colors.orange,
+                                fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
                           ),
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'No time limit - will start automatically\nwhen accuracy is below 50m',
+                          style: TextStyle(color: Colors.white70),
                           textAlign: TextAlign.center,
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'No time limit - will start automatically\nwhen accuracy is below 50m',
-                        style: const TextStyle(color: Colors.white70),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: () {
-                          _locationAttempts = 0;
-                          _positionSamples.clear();
-                          _initializeLocationTracking(); 
-                        },
-                        child: const Text('Restart GPS Search'),
-                      ),
-                    ],
-                  ),
-              ],
+                        const SizedBox(height: 20),
+                        ElevatedButton(
+                          onPressed: () {
+                            _locationAttempts = 0;
+                            _positionSamples.clear();
+                            _initializeLocationTracking(); 
+                          },
+                          child: const Text('Restart GPS Search'),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -557,7 +570,6 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
             polylines: {routePolyline},
             onMapCreated: (controller) {
               mapController = controller;
-
               
               if (Platform.isIOS && currentLocation != null) {
                 controller.animateCamera(
@@ -598,7 +610,8 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
-                            color: currentLocation != null && currentLocation!.accuracy <= _acceptableAccuracyThreshold
+                            color: currentLocation != null &&
+                                currentLocation!.accuracy <= _acceptableAccuracyThreshold
                                 ? Colors.green
                                 : Colors.red,
                           ),
@@ -606,10 +619,12 @@ class ActiveRunPageState extends State<ActiveRunPage> with RunTrackingMixin {
                         const SizedBox(width: 4),
                         
                         Icon(
-                          currentLocation != null && currentLocation!.accuracy <= _acceptableAccuracyThreshold
+                          currentLocation != null &&
+                              currentLocation!.accuracy <= _acceptableAccuracyThreshold
                               ? Icons.check_circle
                               : Icons.error_outline,
-                          color: currentLocation != null && currentLocation!.accuracy <= _acceptableAccuracyThreshold
+                          color: currentLocation != null &&
+                              currentLocation!.accuracy <= _acceptableAccuracyThreshold
                               ? Colors.green
                               : Colors.red,
                           size: 14,

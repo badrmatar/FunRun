@@ -62,6 +62,9 @@ class ActiveRunPageState extends State<ActiveRunPage> {
   
   Map<String, dynamic>? _runSummary;
 
+  
+  LatLng? _lastRecordedLocation;
+  final Map<MarkerId, Marker> _markers = {};
   @override
   void initState() {
     super.initState();
@@ -70,16 +73,10 @@ class ActiveRunPageState extends State<ActiveRunPage> {
 
   Future<void> _initializeRun() async {
     
-    _locationService.setTrackingMode(TrackingMode.high_accuracy);
-
-    
     _addRoutePoint(LatLng(
         widget.initialPosition.latitude,
         widget.initialPosition.longitude
     ));
-
-    
-    _locationService.initializeKalmanFilter(widget.initialPosition);
 
     
     _runTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -95,11 +92,28 @@ class ActiveRunPageState extends State<ActiveRunPage> {
     });
 
     
-    _locationSubscription = _locationService.trackLocation().listen(_handleNewLocation);
+    _startLocationTracking();
 
     setState(() {
       _isTracking = true;
+      _lastRecordedLocation = LatLng(
+          widget.initialPosition.latitude,
+          widget.initialPosition.longitude
+      );
     });
+  }
+
+  void _startLocationTracking() {
+    
+    const locationSettings = LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 5, 
+    );
+
+    
+    _locationSubscription = Geolocator.getPositionStream(
+        locationSettings: locationSettings
+    ).listen(_handleNewLocation);
   }
 
   void _handleNewLocation(Position position) {
@@ -109,12 +123,10 @@ class ActiveRunPageState extends State<ActiveRunPage> {
     final currentPoint = LatLng(position.latitude, position.longitude);
 
     
-    if (_routePoints.isNotEmpty) {
-      final previousPoint = _routePoints.last;
-
+    if (_lastRecordedLocation != null) {
       
       final segmentDistance = _calculateDistance(
-          previousPoint.latitude, previousPoint.longitude,
+          _lastRecordedLocation!.latitude, _lastRecordedLocation!.longitude,
           currentPoint.latitude, currentPoint.longitude
       );
 
@@ -125,7 +137,7 @@ class ActiveRunPageState extends State<ActiveRunPage> {
       _handleAutoPauseLogic(speed);
 
       
-      if (!_autoPaused && segmentDistance > 0 && segmentDistance < 100) {
+      if (!_autoPaused) {
         setState(() {
           _distanceCovered += segmentDistance;
           _currentSpeed = speed;
@@ -136,6 +148,9 @@ class ActiveRunPageState extends State<ActiveRunPage> {
             final paceSeconds = _secondsElapsed / (_distanceCovered / 1000);
             _averagePace = paceSeconds / 60;
           }
+
+          
+          _lastRecordedLocation = currentPoint;
         });
       }
     }
@@ -229,7 +244,7 @@ class ActiveRunPageState extends State<ActiveRunPage> {
       _manuallyPaused = !_manuallyPaused;
     });
   }
-  
+
   Future<void> _endRunAndSave() async {
     if (_routePoints.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -599,6 +614,7 @@ class ActiveRunPageState extends State<ActiveRunPage> {
             myLocationButtonEnabled: false,
             zoomControlsEnabled: false,
             polylines: _polylines,
+            markers: Set<Marker>.of(_markers.values),
             onMapCreated: (controller) => _mapController = controller,
           ),
 

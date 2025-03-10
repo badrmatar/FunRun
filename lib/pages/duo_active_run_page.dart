@@ -30,6 +30,7 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
   double _partnerDistance = 0.0;
   Timer? _partnerPollingTimer;
   StreamSubscription? _iosLocationSubscription;
+  StreamSubscription<Position>? _customLocationSubscription;
 
   
   static const double MAX_ALLOWED_DISTANCE = 500;
@@ -76,6 +77,86 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
         _updateDuoWaitingRoom(position);
         _addSelfMarker(position);
       }
+    });
+  }
+
+  void _setupCustomLocationHandling() {
+    
+    
+    _customLocationSubscription = locationService.trackLocation().listen((position) {
+      if (!isTracking || _hasEnded) return;
+
+      final currentPoint = LatLng(position.latitude, position.longitude);
+
+      
+      if (lastRecordedLocation != null) {
+        
+        final segmentDistance = calculateDistance(
+            lastRecordedLocation!.latitude,
+            lastRecordedLocation!.longitude,
+            currentPoint.latitude,
+            currentPoint.longitude
+        );
+
+        
+        final speed = position.speed >= 0 ? position.speed : 0.0;
+        if (autoPaused) {
+          if (speed > resumeThreshold) {
+            setState(() {
+              autoPaused = false;
+              stillCounter = 0;
+            });
+          }
+        } else {
+          if (speed < pauseThreshold) {
+            stillCounter++;
+            if (stillCounter >= 5) {
+              setState(() => autoPaused = true);
+            }
+          } else {
+            stillCounter = 0;
+          }
+        }
+
+        
+        if (!autoPaused) {
+          setState(() {
+            
+            distanceCovered += segmentDistance;
+
+            
+            lastRecordedLocation = currentPoint;
+          });
+        }
+      } else {
+        
+        setState(() {
+          lastRecordedLocation = currentPoint;
+        });
+      }
+
+      
+      setState(() {
+        currentLocation = position;
+        routePoints.add(currentPoint);
+        routePolyline = Polyline(
+          polylineId: const PolylineId('route'),
+          color: Colors.orange,
+          width: 5,
+          points: routePoints,
+        );
+      });
+
+      
+      _updateDuoWaitingRoom(position);
+
+      
+      _addSelfMarker(position);
+
+      
+      mapController?.animateCamera(
+          CameraUpdate.newLatLng(currentPoint)
+      );
     });
   }
 
@@ -223,6 +304,7 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
       isTracking = false;
       runTimer?.cancel();
       locationSubscription?.cancel();
+      _customLocationSubscription?.cancel();
       _partnerPollingTimer?.cancel();
 
       
@@ -274,6 +356,9 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
 
         
         startRun(initialPosition);
+
+        
+        _setupCustomLocationHandling();
       }
 
       
@@ -283,6 +368,7 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
             _isInitializing = false;
           });
           startRun(currentLocation!);
+          _setupCustomLocationHandling();
         }
       });
     } catch (e) {
@@ -296,6 +382,7 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     _hasEnded = true;
     runTimer?.cancel();
     locationSubscription?.cancel();
+    _customLocationSubscription?.cancel();
     _partnerPollingTimer?.cancel();
 
     
@@ -358,6 +445,7 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
       isTracking = false;
       runTimer?.cancel();
       locationSubscription?.cancel();
+      _customLocationSubscription?.cancel();
       _partnerPollingTimer?.cancel();
 
       
@@ -528,6 +616,7 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     _hasEnded = true;
     runTimer?.cancel();
     locationSubscription?.cancel();
+    _customLocationSubscription?.cancel();
     _partnerPollingTimer?.cancel();
 
     

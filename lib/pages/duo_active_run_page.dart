@@ -41,7 +41,7 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
   bool _isInitializing = true;
 
   
-  final Map<MarkerId, Marker> _markers = {};
+  final Map<CircleId, Circle> _circles = {};
 
   final supabase = Supabase.instance.client;
 
@@ -75,7 +75,7 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
         });
 
         _updateDuoWaitingRoom(position);
-        _addSelfMarker(position);
+        _addSelfCircle(position);
       }
     });
   }
@@ -151,7 +151,7 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
       _updateDuoWaitingRoom(position);
 
       
-      _addSelfMarker(position);
+      _addSelfCircle(position);
 
       
       mapController?.animateCamera(
@@ -163,7 +163,7 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
   void _startPartnerPolling() {
     _partnerPollingTimer?.cancel();
     _partnerPollingTimer =
-        Timer.periodic(const Duration(seconds: 2), (timer) async {
+        Timer.periodic(const Duration(seconds: 1), (timer) async {
           if (!mounted || _hasEnded) {
             timer.cancel();
             return;
@@ -181,31 +181,35 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     return "500+";
   }
 
-  void _addSelfMarker(Position position) {
-    final markerId = const MarkerId('self');
-    final marker = Marker(
-      markerId: markerId,
-      position: LatLng(position.latitude, position.longitude),
-      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-      infoWindow: const InfoWindow(title: 'You'),
+  void _addSelfCircle(Position position) {
+    final circleId = CircleId('self');
+    final circle = Circle(
+      circleId: circleId,
+      center: LatLng(position.latitude, position.longitude),
+      radius: 10, 
+      fillColor: Colors.blue.withOpacity(0.7),
+      strokeColor: Colors.blue,
+      strokeWidth: 2,
     );
 
     setState(() {
-      _markers[markerId] = marker;
+      _circles[circleId] = circle;
     });
   }
 
-  void _addPartnerMarker(Position position) {
-    final markerId = const MarkerId('partner');
-    final marker = Marker(
-      markerId: markerId,
-      position: LatLng(position.latitude, position.longitude),
-      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-      infoWindow: const InfoWindow(title: 'Your Partner'),
+  void _addPartnerCircle(Position position) {
+    final circleId = CircleId('partner');
+    final circle = Circle(
+      circleId: circleId,
+      center: LatLng(position.latitude, position.longitude),
+      radius: 10, 
+      fillColor: Colors.green.withOpacity(0.7),
+      strokeColor: Colors.green,
+      strokeWidth: 2,
     );
 
     setState(() {
-      _markers[markerId] = marker;
+      _circles[circleId] = circle;
     });
   }
 
@@ -273,7 +277,7 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
         );
 
         
-        _addPartnerMarker(partnerPosition);
+        _addPartnerCircle(partnerPosition);
 
         setState(() {
           _partnerDistance = calculatedDistance;
@@ -349,7 +353,7 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
         });
 
         
-        _addSelfMarker(initialPosition);
+        _addSelfCircle(initialPosition);
 
         
         _updateDuoWaitingRoom(initialPosition);
@@ -687,12 +691,12 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
                   ? LatLng(
                   currentLocation!.latitude, currentLocation!.longitude)
                   : const LatLng(37.4219999, -122.0840575),
-              zoom: 15,
+              zoom: 16,
             ),
             myLocationEnabled: true,
             myLocationButtonEnabled: true,
             polylines: {routePolyline},
-            markers: Set<Marker>.of(_markers.values),
+            circles: Set<Circle>.of(_circles.values),
             onMapCreated: (controller) => mapController = controller,
           ),
           Positioned(

@@ -105,10 +105,10 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
       if (lastRecordedLocation != null) {
         
         final segmentDistance = calculateDistance(
-            lastRecordedLocation!.latitude,
-            lastRecordedLocation!.longitude,
-            currentPoint.latitude,
-            currentPoint.longitude
+          lastRecordedLocation!.latitude,
+          lastRecordedLocation!.longitude,
+          currentPoint.latitude,
+          currentPoint.longitude,
         );
 
         
@@ -132,12 +132,9 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
         }
 
         
-        if (!autoPaused) {
+        if (!autoPaused && segmentDistance > 17) {
           setState(() {
-            
             distanceCovered += segmentDistance;
-
-            
             lastRecordedLocation = currentPoint;
           });
         }
@@ -164,11 +161,10 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
       _updateDuoWaitingRoom(position);
 
       
-      mapController?.animateCamera(
-          CameraUpdate.newLatLng(currentPoint)
-      );
+      mapController?.animateCamera(CameraUpdate.newLatLng(currentPoint));
     });
   }
+
 
   
   void _startPartnerPolling() {

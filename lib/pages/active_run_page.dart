@@ -126,8 +126,10 @@ class ActiveRunPageState extends State<ActiveRunPage> {
     if (_lastRecordedLocation != null) {
       
       final segmentDistance = _calculateDistance(
-          _lastRecordedLocation!.latitude, _lastRecordedLocation!.longitude,
-          currentPoint.latitude, currentPoint.longitude
+        _lastRecordedLocation!.latitude,
+        _lastRecordedLocation!.longitude,
+        currentPoint.latitude,
+        currentPoint.longitude,
       );
 
       
@@ -137,14 +139,13 @@ class ActiveRunPageState extends State<ActiveRunPage> {
       _handleAutoPauseLogic(speed);
 
       
-      if (!_autoPaused) {
+      if (!_autoPaused && segmentDistance > 17) {
         setState(() {
           _distanceCovered += segmentDistance;
           _currentSpeed = speed;
 
           
           if (_distanceCovered > 0) {
-            
             final paceSeconds = _secondsElapsed / (_distanceCovered / 1000);
             _averagePace = paceSeconds / 60;
           }
@@ -157,10 +158,9 @@ class ActiveRunPageState extends State<ActiveRunPage> {
 
     
     _addRoutePoint(currentPoint);
-
-    
     _animateToUser(position);
   }
+
 
   void _addRoutePoint(LatLng point) {
     setState(() {

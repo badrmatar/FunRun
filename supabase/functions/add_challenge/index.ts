@@ -1,5 +1,7 @@
+
 import { createClient } from 'https:
 import { serve } from 'https:
+import { validatePostRequest } from './helpers.ts'  
 
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
@@ -10,27 +12,20 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 
 serve(async (req: Request) => {
   
-  if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 })
-  }
-
+  const result = await validatePostRequest(req, [
+    'start_time',
+    'duration',
+    'earning_points',
+    'difficulty',
+    'length'
+  ])
   
-  let body: any
-  try {
-    body = await req.json()
-  } catch (e) {
-    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400 })
-  }
-
   
+  if (result instanceof Response) return result
+  
+  
+  const body = result
   const { start_time, duration, earning_points, difficulty, length } = body
-
-  
-  if (!start_time || !duration || !earning_points || !difficulty || !length) {
-    return new Response(JSON.stringify({ error: 'Missing required fields' }), {
-      status: 400,
-    })
-  }
 
   
   const { data, error } = await supabase
@@ -40,17 +35,19 @@ serve(async (req: Request) => {
       duration,        
       earning_points,  
       difficulty,      
-      length         
+      length           
     })
     .select('*') 
 
-  
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), {
       status: 400,
+      headers: { 'Content-Type': 'application/json' }
     })
   }
 
-  
-  return new Response(JSON.stringify({ data }), { status: 201 })
+  return new Response(JSON.stringify({ data }), {
+    status: 201,
+    headers: { 'Content-Type': 'application/json' }
+  })
 })

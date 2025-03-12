@@ -1,26 +1,43 @@
-
 import 'package:json_annotation/json_annotation.dart';
 
-part 'challenge.g.dart';
+part 'challenge.g.dart'; 
 
 @JsonSerializable()
 class Challenge {
+  @JsonKey(name: 'challenge_id') 
   final int challengeId;
+
+  @JsonKey(name: 'start_time') 
   final DateTime startTime;
-  final int duration;
-  final int earningPoints;
-  final String difficulty;
-  final String type;
+
+  final int? duration; 
+
+  @JsonKey(name: 'earning_points') 
+  final int? earningPoints; 
+
+  final String difficulty; 
+
+  final double? length; 
 
   Challenge({
     required this.challengeId,
     required this.startTime,
-    required this.duration,
-    required this.earningPoints,
+    this.duration,
+    this.earningPoints,
     required this.difficulty,
-    required this.type,
+    this.length,
   });
 
-  factory Challenge.fromJson(Map<String, dynamic> json) => _$ChallengeFromJson(json);
+  
+  String get formattedDistance {
+    if (length == null) return 'Distance: N/A';
+    return 'Distance: ${length?.toStringAsFixed(1)} km';
+  }
+
+  
+  factory Challenge.fromJson(Map<String, dynamic> json) =>
+      _$ChallengeFromJson(json);
+
+  
   Map<String, dynamic> toJson() => _$ChallengeToJson(this);
 }

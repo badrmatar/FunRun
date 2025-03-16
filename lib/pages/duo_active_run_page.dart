@@ -182,18 +182,16 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     });
   }
 
-
   
   void _startPartnerPolling() {
     _partnerPollingTimer?.cancel();
-    _partnerPollingTimer =
-        Timer.periodic(const Duration(seconds: 1), (timer) async {
-          if (!mounted || _hasEnded) {
-            timer.cancel();
-            return;
-          }
-          await _pollPartnerStatus();
-        });
+    _partnerPollingTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      if (!mounted || _hasEnded) {
+        timer.cancel();
+        return;
+      }
+      await _pollPartnerStatus();
+    });
   }
 
   
@@ -353,12 +351,24 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
         _updateDuoWaitingRoom(initialPosition);
 
         
+        runTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+          if (!autoPaused && mounted) {
+            setState(() => secondsElapsed++);
+          }
+        });
+
+        
+        setState(() {
+          startLocation = initialPosition;
+          lastRecordedLocation = LatLng(initialPosition.latitude, initialPosition.longitude);
+          isTracking = true;
+        });
+
+        
         if (Platform.isIOS) {
           
           await _initializeIOSLocationBridge();
         } else {
-          
-          startRun(initialPosition);
           
           _setupCustomLocationHandling();
         }
@@ -371,10 +381,19 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
             _isInitializing = false;
           });
 
-          if (Platform.isIOS) {
-            
-          } else {
-            startRun(currentLocation!);
+          
+          if (!isTracking) {
+            setState(() {
+              startLocation = currentLocation;
+              lastRecordedLocation = LatLng(currentLocation!.latitude, currentLocation!.longitude);
+              isTracking = true;
+            });
+
+            if (Platform.isIOS) {
+              _initializeIOSLocationBridge();
+            } else {
+              _setupCustomLocationHandling();
+            }
           }
         }
       });
@@ -679,8 +698,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
 
   
   Widget _buildMap() {
-    Set<Polyline> polylines = {routePolyline, _partnerRoutePolyline};
-
     return GoogleMap(
       initialCameraPosition: CameraPosition(
         target: currentLocation != null
@@ -690,7 +707,7 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
       ),
       myLocationEnabled: true, 
       myLocationButtonEnabled: true,
-      polylines: polylines,
+      polylines: {routePolyline, _partnerRoutePolyline},
       circles: Set<Circle>.of(_circles.values),
       onMapCreated: (controller) => mapController = controller,
     );

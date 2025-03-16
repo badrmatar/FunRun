@@ -82,15 +82,58 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     _iosLocationSubscription = _iosBridge.locationStream.listen((position) {
       if (!mounted || _hasEnded) return;
 
-      if (currentLocation == null ||
-          position.accuracy < currentLocation!.accuracy) {
+      print("iOS location update received: ${position.latitude}, ${position.longitude}, accuracy: ${position.accuracy}");
+
+      
+      if (currentLocation == null || position.accuracy < currentLocation!.accuracy) {
         setState(() {
           currentLocation = position;
         });
 
+        
         _updateDuoWaitingRoom(position);
-        _addSelfCircle(position);
+
+        
+        final currentPoint = LatLng(position.latitude, position.longitude);
+
+        
+        setState(() {
+          routePoints.add(currentPoint);
+          routePolyline = Polyline(
+            polylineId: const PolylineId('route'),
+            color: AppConstants.selfRouteColor,
+            width: 5,
+            points: routePoints,
+          );
+        });
+
+        
+        if (lastRecordedLocation != null) {
+          final segmentDistance = calculateDistance(
+            lastRecordedLocation!.latitude,
+            lastRecordedLocation!.longitude,
+            currentPoint.latitude,
+            currentPoint.longitude,
+          );
+
+          
+          if (segmentDistance > 15.0) {
+            print("iOS: Adding distance segment: $segmentDistance meters");
+            setState(() {
+              distanceCovered += segmentDistance;
+              lastRecordedLocation = currentPoint;
+            });
+          }
+        } else {
+          
+          lastRecordedLocation = currentPoint;
+        }
+
+        
+        mapController?.animateCamera(CameraUpdate.newLatLng(currentPoint));
       }
+    }, onError: (error) {
+      print("iOS location bridge error: $error");
     });
   }
 
@@ -132,7 +175,7 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
         }
 
         
-        if (!autoPaused && segmentDistance > 17) {
+        if (!autoPaused && segmentDistance > 15) {
           setState(() {
             distanceCovered += segmentDistance;
             lastRecordedLocation = currentPoint;

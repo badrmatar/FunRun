@@ -15,7 +15,6 @@ import '../services/ios_location_bridge.dart';
 import '../constants/app_constants.dart';
 
 
-
 class DuoActiveRunPage extends StatefulWidget {
   
   final int challengeId;
@@ -31,7 +30,8 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     with RunTrackingMixin {
   
   Position? _partnerLocation;
-  double _partnerDistance = 0.0;
+  double _partnerDistance = 0.0; 
+  double _gapDistance = 0.0; 
   Timer? _partnerPollingTimer;
   StreamSubscription? _iosLocationSubscription;
   StreamSubscription<Position>? _customLocationSubscription;
@@ -227,8 +227,7 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
 
       
       final partnerPoint = LatLng(position.latitude, position.longitude);
-      if (_partnerRoutePoints.isEmpty ||
-          _partnerRoutePoints.last != partnerPoint) {
+      if (_partnerRoutePoints.isEmpty || _partnerRoutePoints.last != partnerPoint) {
         _partnerRoutePoints.add(partnerPoint);
         _partnerRoutePolyline = Polyline(
           polylineId: const PolylineId('partner_route'),
@@ -308,6 +307,11 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
           partnerPosition.latitude,
           partnerPosition.longitude,
         );
+
+        
+        setState(() {
+          _gapDistance = gapDistance;
+        });
 
         
         if (gapDistance > 300.0 && !_hasEnded) {
@@ -743,7 +747,7 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
               children: [
                 _buildStatItem('DISTANCE', '${distanceKm.toStringAsFixed(2)} km'),
                 _buildStatItem('TIME', _formatTime(secondsElapsed)),
-                _buildStatItem('PARTNER', '${_getDistanceGroup(_partnerDistance)} m'),
+                _buildStatItem('PARTNER', '${_getDistanceGroup(_gapDistance)} m'),
               ],
             ),
 

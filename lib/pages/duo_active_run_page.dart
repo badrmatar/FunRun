@@ -64,12 +64,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
   @override
   void initState() {
     super.initState();
-
-    
-    if (Platform.isIOS) {
-      _initializeIOSLocationBridge();
-    }
-
     _initializeRun();
     _startPartnerPolling();
   }
@@ -359,10 +353,15 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
         _updateDuoWaitingRoom(initialPosition);
 
         
-        startRun(initialPosition);
-
-        
-        _setupCustomLocationHandling();
+        if (Platform.isIOS) {
+          
+          await _initializeIOSLocationBridge();
+        } else {
+          
+          startRun(initialPosition);
+          
+          _setupCustomLocationHandling();
+        }
       }
 
       
@@ -371,8 +370,12 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
           setState(() {
             _isInitializing = false;
           });
-          startRun(currentLocation!);
-          _setupCustomLocationHandling();
+
+          if (Platform.isIOS) {
+            
+          } else {
+            startRun(currentLocation!);
+          }
         }
       });
     } catch (e) {
@@ -676,6 +679,8 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
 
   
   Widget _buildMap() {
+    Set<Polyline> polylines = {routePolyline, _partnerRoutePolyline};
+
     return GoogleMap(
       initialCameraPosition: CameraPosition(
         target: currentLocation != null
@@ -685,7 +690,7 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
       ),
       myLocationEnabled: true, 
       myLocationButtonEnabled: true,
-      polylines: {routePolyline, _partnerRoutePolyline},
+      polylines: polylines,
       circles: Set<Circle>.of(_circles.values),
       onMapCreated: (controller) => mapController = controller,
     );

@@ -16,9 +16,6 @@ import '../constants/app_constants.dart';
 
 
 
-
-
-
 class DuoActiveRunPage extends StatefulWidget {
   
   final int challengeId;
@@ -38,6 +35,9 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
   Timer? _partnerPollingTimer;
   StreamSubscription? _iosLocationSubscription;
   StreamSubscription<Position>? _customLocationSubscription;
+
+  
+  Position? _lastPartnerLocation;
 
   
   final List<LatLng> _partnerRoutePoints = [];
@@ -64,6 +64,12 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
   @override
   void initState() {
     super.initState();
+
+    
+    if (Platform.isIOS) {
+      _initializeIOSLocationBridge();
+    }
+
     _initializeRun();
     _startPartnerPolling();
   }
@@ -140,7 +146,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
 
       
       if (lastRecordedLocation != null) {
-        
         final segmentDistance = calculateDistance(
           lastRecordedLocation!.latitude,
           lastRecordedLocation!.longitude,
@@ -185,13 +190,14 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
   
   void _startPartnerPolling() {
     _partnerPollingTimer?.cancel();
-    _partnerPollingTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
-      if (!mounted || _hasEnded) {
-        timer.cancel();
-        return;
-      }
-      await _pollPartnerStatus();
-    });
+    _partnerPollingTimer =
+        Timer.periodic(const Duration(seconds: 1), (timer) async {
+          if (!mounted || _hasEnded) {
+            timer.cancel();
+            return;
+          }
+          await _pollPartnerStatus();
+        });
   }
 
   
@@ -211,8 +217,8 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
       circleId: circleId,
       center: LatLng(position.latitude, position.longitude),
       radius: 15, 
-      fillColor: Colors.green.withOpacity(0.5), 
-      strokeColor: Colors.white, 
+      fillColor: Colors.green.withOpacity(0.5),
+      strokeColor: Colors.white,
       strokeWidth: 2,
     );
 
@@ -257,10 +263,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
   }
 
   
-  
-  
-  
-  
   Future<void> _pollPartnerStatus() async {
     if (currentLocation == null || !mounted) return;
     try {
@@ -274,19 +276,15 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
       if (!mounted) return;
       if (results is List && results.isNotEmpty) {
         final data = results.first as Map<String, dynamic>;
+
         
         if (data['has_ended'] == true) {
           await _endRunDueToPartner();
           return;
         }
+
         final partnerLat = data['current_latitude'] as num;
         final partnerLng = data['current_longitude'] as num;
-        final calculatedDistance = Geolocator.distanceBetween(
-          currentLocation!.latitude,
-          currentLocation!.longitude,
-          partnerLat.toDouble(),
-          partnerLng.toDouble(),
-        );
 
         
         final partnerPosition = Position(
@@ -304,15 +302,15 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
         );
 
         
-        _addPartnerCircle(partnerPosition);
-
-        setState(() {
-          _partnerDistance = calculatedDistance;
-          _partnerLocation = partnerPosition;
-        });
+        final gapDistance = Geolocator.distanceBetween(
+          currentLocation!.latitude,
+          currentLocation!.longitude,
+          partnerPosition.latitude,
+          partnerPosition.longitude,
+        );
 
         
-        if (calculatedDistance > 300.0 && !_hasEnded) {
+        if (gapDistance > 300.0 && !_hasEnded) {
           await supabase.from('duo_waiting_room').update({
             'has_ended': true,
           }).match({
@@ -322,6 +320,28 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
           await _handleMaxDistanceExceeded();
           return;
         }
+
+        
+        if (_lastPartnerLocation != null) {
+          final segmentDistance = Geolocator.distanceBetween(
+            _lastPartnerLocation!.latitude,
+            _lastPartnerLocation!.longitude,
+            partnerPosition.latitude,
+            partnerPosition.longitude,
+          );
+          if (segmentDistance > 15.0) {
+            setState(() {
+              _partnerDistance += segmentDistance;
+            });
+          }
+        }
+        _lastPartnerLocation = partnerPosition;
+
+        
+        _addPartnerCircle(partnerPosition);
+        setState(() {
+          _partnerLocation = partnerPosition;
+        });
       }
     } catch (e) {
       debugPrint('Error in partner polling: $e. Challenge ID: ${widget.challengeId}');
@@ -351,27 +371,10 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
         _updateDuoWaitingRoom(initialPosition);
 
         
-        runTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-          if (!autoPaused && mounted) {
-            setState(() => secondsElapsed++);
-          }
-        });
+        startRun(initialPosition);
 
         
-        setState(() {
-          startLocation = initialPosition;
-          lastRecordedLocation = LatLng(initialPosition.latitude, initialPosition.longitude);
-          isTracking = true;
-        });
-
-        
-        if (Platform.isIOS) {
-          
-          await _initializeIOSLocationBridge();
-        } else {
-          
-          _setupCustomLocationHandling();
-        }
+        _setupCustomLocationHandling();
       }
 
       
@@ -380,21 +383,8 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
           setState(() {
             _isInitializing = false;
           });
-
-          
-          if (!isTracking) {
-            setState(() {
-              startLocation = currentLocation;
-              lastRecordedLocation = LatLng(currentLocation!.latitude, currentLocation!.longitude);
-              isTracking = true;
-            });
-
-            if (Platform.isIOS) {
-              _initializeIOSLocationBridge();
-            } else {
-              _setupCustomLocationHandling();
-            }
-          }
+          startRun(currentLocation!);
+          _setupCustomLocationHandling();
         }
       });
     } catch (e) {
@@ -443,15 +433,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
   }
 
   
-  
-  
-  
-  
-  
-  
-  
-  
-  
   Future<void> _endRun({
     required String reason,
     bool notifyPartner = false,
@@ -492,14 +473,12 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
       ];
 
       if (notifyPartner) {
-        updatePromises.add(
-            supabase.from('duo_waiting_room').update({
-              'has_ended': true,
-            }).match({
-              'team_challenge_id': widget.challengeId,
-              'user_id': user.id,
-            })
-        );
+        updatePromises.add(supabase.from('duo_waiting_room').update({
+          'has_ended': true,
+        }).match({
+          'team_challenge_id': widget.challengeId,
+          'user_id': user.id,
+        }));
       }
 
       await Future.wait(updatePromises);
@@ -692,7 +671,7 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
           );
         },
       ),
-      automaticallyImplyLeading: false, 
+      automaticallyImplyLeading: false,
     );
   }
 
@@ -705,14 +684,13 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
             : const LatLng(37.4219999, -122.0840575),
         zoom: 16,
       ),
-      myLocationEnabled: true, 
+      myLocationEnabled: true,
       myLocationButtonEnabled: true,
       polylines: {routePolyline, _partnerRoutePolyline},
       circles: Set<Circle>.of(_circles.values),
       onMapCreated: (controller) => mapController = controller,
     );
   }
-
 
   
   Widget _buildBottomStatsPanel() {

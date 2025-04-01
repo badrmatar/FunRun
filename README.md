@@ -1,4 +1,4 @@
-# year4_project
+# FunRun
 
 A new Flutter project.
 

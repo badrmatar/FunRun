@@ -50,7 +50,7 @@ Welcome to **FunRun**, a socially-driven, gamified fitness tracking app built wi
 
 ### Clone the Repository
 ```bash
-git clone https://github.com/badrmatar/year4_project_final.git
+git clone https://github.com/badrmatar/year4_project_final.git](https://github.com/badrmatar/FunRun
 cd year4_project_final
 Install Dependencies
 bash

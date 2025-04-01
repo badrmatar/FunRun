@@ -28,13 +28,10 @@ class ActiveRunPage extends StatefulWidget {
 }
 
 class ActiveRunPageState extends State<ActiveRunPage> {
-  
   final LocationService _locationService = LocationService();
-
-  
   GoogleMapController? _mapController;
 
-  
+  // Run state variables
   bool _isTracking = false;
   bool _autoPaused = false;
   bool _manuallyPaused = false;
@@ -42,25 +39,20 @@ class ActiveRunPageState extends State<ActiveRunPage> {
   double _distanceCovered = 0.0;
   double _currentSpeed = 0.0;
 
-  
+  // Path variables
   List<LatLng> _routePoints = [];
   Set<Polyline> _polylines = {};
-
-  
   Timer? _runTimer;
 
-  
+  // Auto-pause detection
   int _stillCount = 0;
-  static const _pauseThreshold = 0.5;  
-  static const _resumeThreshold = 1.0;  
+  static const _pauseThreshold = 0.5;  // m/s
+  static const _resumeThreshold = 1.0;
 
-  
+  // Location subscription
   StreamSubscription<Position>? _locationSubscription;
-
-  
   Map<String, dynamic>? _runSummary;
 
-  
   LatLng? _lastRecordedLocation;
   final Map<MarkerId, Marker> _markers = {};
   @override
@@ -70,13 +62,13 @@ class ActiveRunPageState extends State<ActiveRunPage> {
   }
 
   Future<void> _initializeRun() async {
-    
+    // Start with initial position
     _addRoutePoint(LatLng(
         widget.initialPosition.latitude,
         widget.initialPosition.longitude
     ));
 
-    
+    // Start run timer
     _runTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!_autoPaused && !_manuallyPaused && mounted) {
         setState(() {
@@ -85,7 +77,7 @@ class ActiveRunPageState extends State<ActiveRunPage> {
       }
     });
 
-    
+    // Start tracking
     _startLocationTracking();
 
     setState(() {
@@ -98,13 +90,11 @@ class ActiveRunPageState extends State<ActiveRunPage> {
   }
 
   void _startLocationTracking() {
-    
+    //loc setting stup
     const locationSettings = LocationSettings(
       accuracy: LocationAccuracy.high,
-      distanceFilter: 5, 
+      distanceFilter: 5,
     );
-
-    
     _locationSubscription = Geolocator.getPositionStream(
         locationSettings: locationSettings
     ).listen(_handleNewLocation);
@@ -112,13 +102,8 @@ class ActiveRunPageState extends State<ActiveRunPage> {
 
   void _handleNewLocation(Position position) {
     if (!_isTracking || _manuallyPaused) return;
-
-    
     final currentPoint = LatLng(position.latitude, position.longitude);
-
-    
     if (_lastRecordedLocation != null) {
-      
       final segmentDistance = _calculateDistance(
         _lastRecordedLocation!.latitude,
         _lastRecordedLocation!.longitude,
@@ -126,24 +111,20 @@ class ActiveRunPageState extends State<ActiveRunPage> {
         currentPoint.longitude,
       );
 
-      
+      // Adjust speed
       final speed = position.speed >= 0 ? position.speed : 0.0;
-
-      
-
-      
       if (segmentDistance > 15) {
         setState(() {
           _distanceCovered += segmentDistance;
           _currentSpeed = speed;
 
-          
+          // Update last recorded location
           _lastRecordedLocation = currentPoint;
         });
       }
     }
 
-    
+    // Add point to route and move camera
     _addRoutePoint(currentPoint);
     _animateToUser(position);
   }
@@ -172,7 +153,7 @@ class ActiveRunPageState extends State<ActiveRunPage> {
 
 
   double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    const double earthRadius = 6371000.0; 
+    const double earthRadius = 6371000.0; // meters
     final double dLat = _degreesToRadians(lat2 - lat1);
     final double dLon = _degreesToRadians(lon2 - lon1);
 
@@ -203,7 +184,7 @@ class ActiveRunPageState extends State<ActiveRunPage> {
       return;
     }
 
-    
+    // Stop tracking
     _locationSubscription?.cancel();
     _runTimer?.cancel();
 
@@ -211,7 +192,7 @@ class ActiveRunPageState extends State<ActiveRunPage> {
       _isTracking = false;
     });
 
-    
+    // loading dialog
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -235,16 +216,11 @@ class ActiveRunPageState extends State<ActiveRunPage> {
     try {
       await _saveRunData();
 
-      
+      // loading dialog pop
       if (mounted) Navigator.of(context).pop();
-
-      
       Navigator.of(context).pushReplacementNamed('/challenges');
     } catch (e) {
-      
       if (mounted) Navigator.of(context).pop();
-
-      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Error saving run: ${e.toString()}")),
@@ -317,7 +293,7 @@ class ActiveRunPageState extends State<ActiveRunPage> {
   void _showRunSummary() {
     if (_runSummary == null) return;
 
-    
+    // Format duration
     final duration = Duration(seconds: _secondsElapsed);
     final hours = duration.inHours;
     final minutes = duration.inMinutes % 60;
@@ -326,10 +302,9 @@ class ActiveRunPageState extends State<ActiveRunPage> {
         ? '$hours:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}'
         : '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
 
-    
+    // Format distance
     final distanceText = '${(_runSummary!['distanceKm'] as double).toStringAsFixed(2)} km';
 
-    
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -345,7 +320,7 @@ class ActiveRunPageState extends State<ActiveRunPage> {
         ),
         child: Column(
           children: [
-            
+            // Header
             Container(
               padding: const EdgeInsets.all(16),
               decoration: const BoxDecoration(
@@ -381,7 +356,7 @@ class ActiveRunPageState extends State<ActiveRunPage> {
               ),
             ),
 
-            
+            // Stats
             Expanded(
               child: SingleChildScrollView(
                 child: Padding(
@@ -389,7 +364,7 @@ class ActiveRunPageState extends State<ActiveRunPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      
+                      // Map preview of the run (if mapController is available)
                       if (_mapController != null)
                         Container(
                           height: 200,
@@ -415,7 +390,7 @@ class ActiveRunPageState extends State<ActiveRunPage> {
                           ),
                         ),
 
-                      
+                      // Primary stats grid
                       GridView.count(
                         crossAxisCount: 2,
                         mainAxisSpacing: 15,
@@ -431,7 +406,7 @@ class ActiveRunPageState extends State<ActiveRunPage> {
 
                       const SizedBox(height: 20),
 
-                      
+                      // Challenge progress
                       const Text(
                         'Challenge Progress',
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -455,12 +430,10 @@ class ActiveRunPageState extends State<ActiveRunPage> {
                       ),
 
                       const SizedBox(height: 20),
-
-                      
                       Center(
                         child: ElevatedButton(
                           onPressed: () {
-                            Navigator.of(context).pop(); 
+                            Navigator.of(context).pop(); // Close summary
                             Navigator.of(context).pushReplacementNamed('/challenges');
                           },
                           style: ElevatedButton.styleFrom(
@@ -542,7 +515,7 @@ class ActiveRunPageState extends State<ActiveRunPage> {
     return Scaffold(
       body: Stack(
         children: [
-          
+          // Maip full screen
           GoogleMap(
             initialCameraPosition: CameraPosition(
               target: LatLng(
@@ -559,7 +532,7 @@ class ActiveRunPageState extends State<ActiveRunPage> {
             onMapCreated: (controller) => _mapController = controller,
           ),
 
-          
+          // Status bar
           Positioned(
             top: 0,
             left: 0,
@@ -570,7 +543,7 @@ class ActiveRunPageState extends State<ActiveRunPage> {
             ),
           ),
 
-          
+          // back button
           Positioned(
             top: MediaQuery.of(context).padding.top,
             left: 0,
@@ -629,7 +602,7 @@ class ActiveRunPageState extends State<ActiveRunPage> {
             ),
           ),
 
-          
+          // Stats
           Positioned(
             bottom: 0,
             left: 0,
@@ -653,7 +626,7 @@ class ActiveRunPageState extends State<ActiveRunPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  
+                  // Status indicators
                   if (_autoPaused || _manuallyPaused)
                     Container(
                       margin: const EdgeInsets.only(bottom: 8),
@@ -671,7 +644,6 @@ class ActiveRunPageState extends State<ActiveRunPage> {
                       ),
                     ),
 
-                  
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
@@ -682,7 +654,6 @@ class ActiveRunPageState extends State<ActiveRunPage> {
 
                   const SizedBox(height: 16),
 
-                  
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(

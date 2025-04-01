@@ -4,19 +4,15 @@ part 'team.g.dart';
 
 @JsonSerializable()
 class Team {
-  
   @JsonKey(name: 'team_id')
   final int teamId;
 
   @JsonKey(name: 'team_name')
   final String teamName;
 
-  
-  @JsonKey(name: 'current_streak')
+//optional if null  @JsonKey(name: 'current_streak')
   final int? currentStreak;
 
-  
-  
   @JsonKey(name: 'last_completion_date')
   final DateTime? lastCompletionDate;
 
@@ -31,7 +27,7 @@ class Team {
     this.leagueRoomId,
   });
 
-  
+  // JSON serialization
   factory Team.fromJson(Map<String, dynamic> json) => _$TeamFromJson(json);
   Map<String, dynamic> toJson() => _$TeamToJson(this);
 }

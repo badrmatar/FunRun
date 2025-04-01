@@ -1,19 +1,14 @@
-
-
-import { serve } from 'https:
-import { createClient } from 'https:
+import { serve } from 'https://deno.land/std@0.131.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 console.log(`Function "register_user" is up and running!`);
 
 serve(async (req) => {
   try {
-    
     if (req.method !== 'POST') {
       console.log(`Received non-POST request: ${req.method}`);
       return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { status: 405 });
     }
-
-    
     const bodyText = await req.text();
     console.log(`Raw request body: ${bodyText}`);
 
@@ -24,8 +19,6 @@ serve(async (req) => {
         { status: 400 }
       );
     }
-
-    
     let email: string;
     let password: string;
     try {
@@ -49,8 +42,6 @@ serve(async (req) => {
         { status: 400 }
       );
     }
-
-    
     if (typeof email !== 'string' || typeof password !== 'string') {
       console.warn('Invalid data types for email or password.');
       return new Response(
@@ -58,14 +49,12 @@ serve(async (req) => {
         { status: 400 }
       );
     }
-
-    
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
     console.log('Supabase client initialized.');
 
-    
+    // emailk check
     const { data: existingUser, error: fetchError } = await supabase
       .from('users')
       .select('user_id, name, email')
@@ -79,7 +68,6 @@ serve(async (req) => {
         status: 400,
       });
     }
-
     if (!existingUser) {
       console.warn(`User does not exists with email: ${email}`);
       return new Response(
@@ -87,7 +75,6 @@ serve(async (req) => {
         { status: 409 }
       );
     }
-    
     const successResponse = {
       message: 'User found successfully.',
       id: existingUser.user_id,
@@ -107,14 +94,10 @@ serve(async (req) => {
   } catch (error) {
     console.error('Unexpected error:', error);
 
-    
     const environment = Deno.env.get('ENVIRONMENT') || 'production';
     const isDevelopment = environment === 'development';
-
-    
     let errorMessage = 'Internal Server Error';
     if (isDevelopment) {
-      
       const errorDetails = error instanceof Error ? error.message : String(error);
       errorMessage = `Internal Server Error: ${errorDetails}`;
     }

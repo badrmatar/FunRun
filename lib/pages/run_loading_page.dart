@@ -31,29 +31,26 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
   Timer? _elapsedTimer;
   Timer? _autoStartTimer;
 
-  
   static const int AUTO_START_SECONDS = 5;
-  static const double ACCEPTABLE_ACCURACY = 60.0; 
-  static const double GOOD_ACCURACY = 50.0; 
+  static const double ACCEPTABLE_ACCURACY = 60.0; // meters
+  static const double GOOD_ACCURACY = 50.0;
 
   @override
   void initState() {
     super.initState();
     _initializeLocationTracking();
 
-    
     _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
       if (mounted) {
         setState(() {
           _elapsedSeconds++;
         });
 
-        
         try {
           final newPosition = await _locationService.refreshCurrentLocation();
           if (mounted && newPosition != null) {
             setState(() {
-              
+
               if (_bestPosition == null || newPosition.accuracy < _bestPosition!.accuracy) {
                 _bestPosition = newPosition;
                 print('New improved position: accuracy ${newPosition.accuracy}m');
@@ -64,10 +61,9 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
           print('Error getting fresh location: $e');
         }
 
-        
+        // (Auto-start has now been made redundant)
         if (_elapsedSeconds >= AUTO_START_SECONDS && _bestPosition != null) {
           if (_bestPosition!.accuracy <= ACCEPTABLE_ACCURACY) {
-            
             _autoStartTimer?.cancel();
             _autoStartTimer = Timer(const Duration(milliseconds: 500), () {
               if (mounted) {
@@ -121,7 +117,6 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
   }
 
   void _monitorLocationQuality() {
-    
     _locationService.qualityStream.listen((quality) {
       if (!mounted) return;
 
@@ -132,23 +127,14 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
       });
     });
 
-    
     _locationService.positionStream.listen((position) {
       if (!mounted) return;
-
-      
       print('Position update: lat=${position.latitude}, lng=${position.longitude}, acc=${position.accuracy}m');
 
-      
       setState(() {
-        
         if (_bestPosition == null || position.accuracy < _bestPosition!.accuracy) {
           _bestPosition = position;
-
-          
           print('New best position! Accuracy: ${position.accuracy}m');
-
-          
           if (position.accuracy < GOOD_ACCURACY) {
             _isWaitingForSignal = false;
             _hasGoodSignal = true;
@@ -160,17 +146,14 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
           }
         }
 
-        
-        
         if (_bestPosition != null) {
-          
           if (_elapsedSeconds >= AUTO_START_SECONDS && _bestPosition!.accuracy <= ACCEPTABLE_ACCURACY) {
             _statusMessage = "Auto-starting with accuracy: ${_bestPosition!.accuracy.toStringAsFixed(1)}m";
           }
         }
       });
 
-      
+      // Auto-start check if we've hit the time threshold and have acceptable accuracy
       if (_elapsedSeconds >= AUTO_START_SECONDS &&
           _bestPosition != null &&
           _bestPosition!.accuracy <= ACCEPTABLE_ACCURACY) {
@@ -186,8 +169,6 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
 
   void _startRun() {
     if (_bestPosition == null) return;
-
-    
     _elapsedTimer?.cancel();
     _autoStartTimer?.cancel();
 
@@ -204,12 +185,11 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
 
   @override
   void dispose() {
-    
+    // cleanup
     _locationService.stopQualityMonitoring();
     _elapsedTimer?.cancel();
     _autoStartTimer?.cancel();
 
-    
     print('RunLoadingPage disposed, all resources cleaned up');
     super.dispose();
   }
@@ -230,7 +210,7 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            
+            // GPS Signal Indicator
             Container(
               width: 200,
               height: 200,
@@ -264,7 +244,6 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    
                     Container(
                       width: 120,
                       height: 8,
@@ -288,7 +267,7 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
               ),
             ),
             const SizedBox(height: 32),
-            
+            // Status message
             Text(
               _statusMessage,
               textAlign: TextAlign.center,
@@ -299,7 +278,7 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
             ),
             if (_bestPosition != null) ...[
               const SizedBox(height: 16),
-              
+              // Display current accuracy
               TweenAnimationBuilder<double>(
                 tween: Tween<double>(begin: 0, end: _bestPosition!.accuracy),
                 duration: const Duration(milliseconds: 500),
@@ -337,7 +316,6 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
                     fontSize: 14,
                   ),
                 ),
-              
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 10.0),
                 child: Column(
@@ -376,7 +354,6 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
                 ),
               ),
 
-              
               if (_elapsedSeconds >= AUTO_START_SECONDS && _bestPosition!.accuracy > ACCEPTABLE_ACCURACY)
                 Container(
                   width: 200,
@@ -387,14 +364,14 @@ class _RunLoadingPageState extends State<RunLoadingPage> {
                     borderRadius: BorderRadius.circular(2),
                   ),
                   child: LinearProgressIndicator(
-                    value: _elapsedSeconds % 3 / 3, 
+                    value: _elapsedSeconds % 3 / 3,
                     backgroundColor: Colors.transparent,
                     valueColor: AlwaysStoppedAnimation<Color>(Colors.orange),
                   ),
                 ),
             ],
             const SizedBox(height: 48),
-            
+            // Only show cancel button
             Center(
               child: ElevatedButton.icon(
                 onPressed: () => Navigator.of(context).pop(),

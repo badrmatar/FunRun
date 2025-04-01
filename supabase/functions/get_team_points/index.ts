@@ -1,5 +1,5 @@
-import { serve } from 'https:
-import { createClient } from 'https:
+import { serve } from 'https://deno.land/std@0.175.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -17,10 +17,6 @@ serve(async (req) => {
   try {
     const { league_room_id } = await req.json();
     console.log('Getting points for league room:', league_room_id);
-
-    
-    
-    
     const { data: teamChallenges, error: challengesError } = await supabase
       .from('team_challenges')
       .select(`
@@ -47,8 +43,6 @@ serve(async (req) => {
         { status: 400 }
       );
     }
-
-    
     const teamPoints = new Map<number, {
       team_id: number,
       team_name: string,
@@ -60,18 +54,16 @@ serve(async (req) => {
     teamChallenges.forEach(tc => {
       const teamId = tc.team_id;
       const teamName = tc.teams.team_name;
-      
       const bonus = tc.teams.streak_bonus_points || 0;
       const basePoints = tc.challenges.earning_points || 0;
       const multiplier = tc.multiplier || 1;
       const points = basePoints * multiplier;
 
       if (!teamPoints.has(teamId)) {
-        
         teamPoints.set(teamId, {
           team_id: teamId,
           team_name: teamName,
-          total_points: bonus, 
+          total_points: bonus,
           completed_challenges: 0,
           streak_bonus_points: bonus
         });
@@ -82,7 +74,6 @@ serve(async (req) => {
       team.completed_challenges += 1;
     });
 
-    
     const teamsWithPoints = Array.from(teamPoints.values())
       .sort((a, b) => b.total_points - a.total_points);
 

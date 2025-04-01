@@ -1,17 +1,15 @@
-import { serve } from 'https:
-import { createClient } from 'https:
+import { serve } from 'https://deno.land/std@0.131.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 console.log(`Function "join_waiting_room" is up and running!`);
 
 serve(async (req) => {
   try {
-    
+    // Only allow POST requests
     if (req.method !== 'POST') {
       console.log(`Received non-POST request: ${req.method}`);
       return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { status: 405 });
     }
-
-    
     const bodyText = await req.text();
     console.log(`Raw request body: ${bodyText}`);
 
@@ -22,8 +20,6 @@ serve(async (req) => {
         { status: 400 }
       );
     }
-
-    
     let userId: number;
     let waitingRoomId: number;
     try {
@@ -39,8 +35,6 @@ serve(async (req) => {
     }
 
     console.log(`Parsed userId: ${userId}, waitingRoomId: ${waitingRoomId}`);
-
-    
     if (!userId || !waitingRoomId) {
       console.log('Missing required fields.');
       return new Response(
@@ -48,8 +42,6 @@ serve(async (req) => {
         { status: 400 }
       );
     }
-
-    
     if (typeof userId !== 'number' || typeof waitingRoomId !== 'number') {
       console.warn('Invalid data types for userId or waitingRoomId.');
       return new Response(
@@ -57,14 +49,11 @@ serve(async (req) => {
         { status: 400 }
       );
     }
-
-    
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
     console.log('Supabase client initialized.');
 
-    
     const { data: existingUser, error: userError } = await supabase
       .from('users')
       .select('user_id')
@@ -88,8 +77,6 @@ serve(async (req) => {
         { status: 404 }
       );
     }
-
-    
     const { data: waitingRoom, error: waitingRoomError } = await supabase
       .from('waiting_rooms')
       .select('*')
@@ -115,8 +102,6 @@ serve(async (req) => {
         { status: 404 }
       );
     }
-
-    
     const { data: existingParticipant, error: checkError } = await supabase
       .from('waiting_rooms')
       .select('waiting_room_id')
@@ -144,7 +129,7 @@ serve(async (req) => {
       );
     }
 
-    
+    // Add user
     const { data: newParticipant, error: insertError } = await supabase
       .from('waiting_rooms')
       .insert([
@@ -183,14 +168,11 @@ serve(async (req) => {
   } catch (error) {
     console.error('Unexpected error:', error);
 
-    
     const environment = Deno.env.get('ENVIRONMENT') || 'production';
     const isDevelopment = environment === 'development';
 
-    
     let errorMessage = 'Internal Server Error';
     if (isDevelopment) {
-      
       const errorDetails = error instanceof Error ? error.message : String(error);
       errorMessage = `Internal Server Error: ${errorDetails}`;
     }

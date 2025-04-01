@@ -1,5 +1,5 @@
-import { serve } from 'https:
-import { createClient } from 'https:
+import { serve } from 'https://deno.land/std@0.175.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -17,7 +17,7 @@ serve(async (req) => {
   try {
     const { league_room_id } = await req.json();
 
-    
+    // First get the earliest waiting room entry for this league room
     const { data: waitingRoomData, error: waitingRoomError } = await supabase
       .from('waiting_rooms')
       .select('user_id, created_at')
@@ -30,7 +30,6 @@ serve(async (req) => {
 
     const ownerUserId = waitingRoomData.user_id;
 
-    
     const { data: teamsData, error: teamsError } = await supabase
       .from('teams')
       .select(`
@@ -48,18 +47,16 @@ serve(async (req) => {
 
     console.log('Teams data:', teamsData);
 
-    
     const teamsWithStreak = teamsData.map(team => ({
       ...team,
       teams: {
         team_name: team.team_name,
-        current_streak: team.current_streak || 0 
+        current_streak: team.current_streak || 0
       }
     }));
 
     console.log('Transformed teams data:', teamsWithStreak);
 
-    
     return new Response(JSON.stringify({
       teams: teamsWithStreak,
       owner_id: ownerUserId

@@ -1,10 +1,10 @@
-
+// GENERATED CODE - DO NOT MODIFY BY HAND
 
 part of 'team_membership.dart';
 
-
-
-
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
 
 TeamMembership _$TeamMembershipFromJson(Map<String, dynamic> json) =>
     TeamMembership(

@@ -1,10 +1,10 @@
-
+// GENERATED CODE - DO NOT MODIFY BY HAND
 
 part of 'user_contribution.dart';
 
-
-
-
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
 
 UserContribution _$UserContributionFromJson(Map<String, dynamic> json) =>
     UserContribution(

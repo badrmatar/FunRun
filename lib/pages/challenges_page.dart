@@ -44,7 +44,7 @@ class _ChallengesPageState extends State<ChallengesPage> {
     final endOfDay = startOfDay.add(const Duration(days: 1));
 
     try {
-      
+      // Fetch today's challenges.
       final challengesResponse = await supabase
           .from('challenges')
           .select()
@@ -52,7 +52,7 @@ class _ChallengesPageState extends State<ChallengesPage> {
           .lt('start_time', endOfDay.toIso8601String());
       final List challengesList = challengesResponse as List;
 
-      
+      // Fetch the user's active team membership with joined team details.
       final teamMembershipResponse = await supabase
           .from('team_memberships')
           .select('team_id')
@@ -66,7 +66,7 @@ class _ChallengesPageState extends State<ChallengesPage> {
       final Map teamMembershipData = teamMembershipResponse;
       final teamId = teamMembershipData['team_id'];
 
-      
+      // Fetch the team's active challenges with user contributions.
       final activeTeamChallengesResponse = await supabase
           .from('team_challenges')
           .select('*, user_contributions(distance_covered, journey_type)')
@@ -75,7 +75,7 @@ class _ChallengesPageState extends State<ChallengesPage> {
           .order('team_challenge_id', ascending: false);
       final List activeTeamChallengesList = activeTeamChallengesResponse as List;
 
-      
+      // Calculate total and duo distances.
       final teamChallengesWithDistance = activeTeamChallengesList.map((tc) {
         final contributions = tc['user_contributions'] as List;
         final totalDistance = contributions.fold<double>(
@@ -95,11 +95,11 @@ class _ChallengesPageState extends State<ChallengesPage> {
         };
       }).toList();
 
-      
+//check challenge
       dynamic activeTeamChallenge;
       if (teamChallengesWithDistance.isNotEmpty) {
         activeTeamChallenge = teamChallengesWithDistance.first;
-        
+        // If the challenge_id of the active challenge is not in today's challenges, then consider it stale.
         bool isTodayChallenge = challengesList.any((c) =>
         c['challenge_id'] == activeTeamChallenge['challenge_id']);
         if (!isTodayChallenge) {

@@ -1,9 +1,7 @@
-
 export async function validatePostRequest(
   req: Request,
   requiredFields: string[] = []
 ): Promise<any | Response> {
-  
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
@@ -11,7 +9,6 @@ export async function validatePostRequest(
     });
   }
 
-  
   const bodyText = await req.text();
   if (bodyText.trim() === '') {
     return new Response(JSON.stringify({ error: 'Request body cannot be empty.' }), {
@@ -19,8 +16,6 @@ export async function validatePostRequest(
       headers: { 'Content-Type': 'application/json' },
     });
   }
-
-  
   let body;
   try {
     body = JSON.parse(bodyText);
@@ -30,8 +25,6 @@ export async function validatePostRequest(
       headers: { 'Content-Type': 'application/json' },
     });
   }
-
-  
   for (const field of requiredFields) {
     if (!(field in body)) {
       return new Response(JSON.stringify({ error: `Missing required field: ${field}` }), {

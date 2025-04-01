@@ -2,7 +2,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class ChallengeService {
-  final String supabaseEdgeFunctionUrl = 'https:
+  final String supabaseEdgeFunctionUrl = 'https://your-edge-function-url';
   final String apiKey = 'your-supabase-api-key';
 
   Future<void> createTeamChallenge(int teamId, int challengeId) async {
@@ -20,7 +20,6 @@ class ChallengeService {
     );
 
     if (response.statusCode != 201) {
-      
       throw Exception('Failed to create team challenge: ${response.body}');
     }
   }

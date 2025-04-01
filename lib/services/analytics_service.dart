@@ -6,7 +6,6 @@ class AnalyticsService {
   static AnalyticsService? _instance;
   late final AnalyticsClientBase _client;
 
-  
   factory AnalyticsService() {
     _instance ??= AnalyticsService._internal();
     return _instance!;

@@ -9,8 +9,8 @@ class CurrentLocationMapPage extends StatefulWidget {
 
 class _CurrentLocationMapPageState extends State<CurrentLocationMapPage> {
   GoogleMapController? _mapController;
-  LatLng? _currentLatLng; 
-  bool _isLoading = true; 
+  LatLng? _currentLatLng;
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -26,18 +26,15 @@ class _CurrentLocationMapPageState extends State<CurrentLocationMapPage> {
         _isLoading = false;
       });
     } else {
-      
       setState(() {
         _isLoading = false;
       });
-      
     }
   }
 
   Future<Position?> _determinePosition() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      
       return null;
     }
 
@@ -45,17 +42,14 @@ class _CurrentLocationMapPageState extends State<CurrentLocationMapPage> {
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
-        
         return null;
       }
     }
 
     if (permission == LocationPermission.deniedForever) {
-      
       return null;
     }
 
-    
     return await Geolocator.getCurrentPosition(
       desiredAccuracy: LocationAccuracy.high,
     );
@@ -70,42 +64,42 @@ class _CurrentLocationMapPageState extends State<CurrentLocationMapPage> {
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
           : _currentLatLng == null
-          ? Center(
-        child: Text(
-          'Unable to get location.\nCheck permissions or enable GPS.',
-          textAlign: TextAlign.center,
-        ),
-      )
-          : Column(
-        children: [
-          Expanded(
-            child: GoogleMap(
-              onMapCreated: (controller) => _mapController = controller,
-              initialCameraPosition: CameraPosition(
-                target: _currentLatLng!,
-                zoom: 15,
-              ),
-              markers: {
-                Marker(
-                  markerId: MarkerId('currentLocation'),
-                  position: _currentLatLng!,
-                  infoWindow: InfoWindow(title: 'You are here'),
+              ? Center(
+                  child: Text(
+                    'Unable to get location.\nCheck permissions or enable GPS.',
+                    textAlign: TextAlign.center,
+                  ),
+                )
+              : Column(
+                  children: [
+                    Expanded(
+                      child: GoogleMap(
+                        onMapCreated: (controller) =>
+                            _mapController = controller,
+                        initialCameraPosition: CameraPosition(
+                          target: _currentLatLng!,
+                          zoom: 15,
+                        ),
+                        markers: {
+                          Marker(
+                            markerId: MarkerId('currentLocation'),
+                            position: _currentLatLng!,
+                            infoWindow: InfoWindow(title: 'You are here'),
+                          ),
+                        },
+                        myLocationEnabled: true,
+                        myLocationButtonEnabled: true,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Text(
+                        'Saved Location: ${_currentLatLng!.latitude}, ${_currentLatLng!.longitude}',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    ),
+                  ],
                 ),
-              },
-              myLocationEnabled: true,
-              myLocationButtonEnabled: true,
-            ),
-          ),
-          
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(
-              'Saved Location: ${_currentLatLng!.latitude}, ${_currentLatLng!.longitude}',
-              style: TextStyle(fontSize: 16),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

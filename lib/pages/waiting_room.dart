@@ -8,7 +8,7 @@ import '../models/waiting_room_user.dart';
 final String bearerToken = dotenv.env['BEARER_TOKEN']!;
 
 Future<int?> getWaitingRoomId(int userId) async {
-  final url = 'https:
+  final url = 'https://ywhjlgvtjywhacgqtzqh.supabase.co/functions/v1/get_waiting_room_id';
   final headers = {
     'Content-Type': 'application/json',
     'Authorization': 'Bearer $bearerToken'
@@ -35,7 +35,7 @@ Future<int?> getWaitingRoomId(int userId) async {
 }
 
 Future<int?> getLeagueRoomId(int userId) async {
-  final url = 'https:
+  final url = 'https://ywhjlgvtjywhacgqtzqh.supabase.co/functions/v1/get_active_league_room_id';
   final headers = {
     'Content-Type': 'application/json',
     'Authorization': 'Bearer $bearerToken',
@@ -62,7 +62,7 @@ Future<int?> getLeagueRoomId(int userId) async {
 }
 
 Future<int?> createWaitingRoom(int userId) async {
-  final url = 'https:
+  final url = 'https://ywhjlgvtjywhacgqtzqh.supabase.co/functions/v1/create_waiting_room';
   final headers = {
     'Content-Type': 'application/json',
     'Authorization': 'Bearer $bearerToken',
@@ -89,7 +89,7 @@ Future<int?> createWaitingRoom(int userId) async {
 }
 
 Future<bool> joinWaitingRoom(int userId, int waitingRoomId) async {
-  final url = 'https:
+  final url = 'https://ywhjlgvtjywhacgqtzqh.supabase.co/functions/v1/join_waiting_room';
   final headers = {
     'Content-Type': 'application/json',
     'Authorization': 'Bearer $bearerToken',
@@ -118,7 +118,7 @@ Future<bool> joinWaitingRoom(int userId, int waitingRoomId) async {
 }
 
 Future<bool> createLeagueRoom(int userId) async {
-  final url = 'https:
+  final url = 'https://ywhjlgvtjywhacgqtzqh.supabase.co/functions/v1/create_league_room';
   final headers = {
     'Content-Type': 'application/json',
     'Authorization': 'Bearer $bearerToken',
@@ -145,7 +145,7 @@ Future<bool> createLeagueRoom(int userId) async {
 }
 
 Future<List<WaitingRoomUser>> fetchWaitingRoomUsers(int waitingRoomId) async {
-  final url = 'https:
+  final url = 'https://ywhjlgvtjywhacgqtzqh.supabase.co/functions/v1/get_waiting_room_users';
   final headers = {
     'Content-Type': 'application/json',
     'Authorization': 'Bearer $bearerToken',

@@ -51,7 +51,7 @@ class _LoginPageState extends State<LoginPage> {
           key: _formKey,
           child: Column(
             children: [
-              
+              // Email Field
               TextFormField(
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
@@ -76,7 +76,7 @@ class _LoginPageState extends State<LoginPage> {
                 },
               ),
               const SizedBox(height: 16.0),
-              
+              // Password Field
               TextFormField(
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(

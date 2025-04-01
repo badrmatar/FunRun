@@ -29,10 +29,10 @@ class _DuoWaitingRoomState extends State<DuoWaitingRoom> {
   double? _teammateDistance;
   bool _isInitializing = true;
   bool _hasJoinedWaitingRoom = false;
-  static const double REQUIRED_PROXIMITY = 200; 
-  static const double STARTING_PROXIMITY = 100; 
+  static const double REQUIRED_PROXIMITY = 200; // in meters
+  static const double STARTING_PROXIMITY = 100; // in meters - distance required to start
 
-  
+  // Local flags for status
   bool _isReady = false;
   bool _hasTeammate = false;
 
@@ -44,7 +44,6 @@ class _DuoWaitingRoomState extends State<DuoWaitingRoom> {
 
   Future<void> _initializeLocation() async {
     try {
-      
       await _cleanupExistingEntries();
 
       final initialPosition = await _locationService.getCurrentLocation();
@@ -65,7 +64,7 @@ class _DuoWaitingRoomState extends State<DuoWaitingRoom> {
   Future<void> _cleanupExistingEntries() async {
     try {
       final user = Provider.of<UserModel>(context, listen: false);
-      
+      // userentry delete
       await supabase
           .from('duo_waiting_room')
           .delete()
@@ -73,8 +72,6 @@ class _DuoWaitingRoomState extends State<DuoWaitingRoom> {
         'user_id': user.id,
         'team_challenge_id': widget.teamChallengeId,
       });
-
-      
       final staleTime = DateTime.now().subtract(const Duration(seconds: 30));
       await supabase
           .from('duo_waiting_room')
@@ -94,7 +91,7 @@ class _DuoWaitingRoomState extends State<DuoWaitingRoom> {
 
     final user = Provider.of<UserModel>(context, listen: false);
     try {
-      
+      //    new waiting room entry
       await supabase
           .from('duo_waiting_room')
           .insert({
@@ -126,10 +123,10 @@ class _DuoWaitingRoomState extends State<DuoWaitingRoom> {
   }
 
   void _startStatusChecking() {
-    
+    // timer cancrl
     _statusCheckTimer?.cancel();
 
-    
+    // Start new status check timer - checking more frequently (every 500ms)
     _statusCheckTimer = Timer.periodic(
       const Duration(milliseconds: 500),
           (_) => _checkWaitingRoomStatus(),
@@ -141,23 +138,18 @@ class _DuoWaitingRoomState extends State<DuoWaitingRoom> {
 
     try {
       final user = Provider.of<UserModel>(context, listen: false);
-
-      
       final response = await supabase
           .from('duo_waiting_room')
           .select('*, users(name)')
           .eq('team_challenge_id', widget.teamChallengeId)
-          .eq('has_ended', false);  
+          .eq('has_ended', false);
 
       final rows = response as List;
-
-      
       Map<String, dynamic>? teammateEntry;
       bool bothUsersPresent = false;
 
       if (rows.length == 2) {
         bothUsersPresent = true;
-        
         try {
           teammateEntry = rows.firstWhere(
                 (row) => row['user_id'] != user.id,
@@ -167,33 +159,27 @@ class _DuoWaitingRoomState extends State<DuoWaitingRoom> {
           bothUsersPresent = false;
         }
       }
-
-      
       if (teammateEntry != null) {
         final lastUpdate = DateTime.parse(teammateEntry['last_update']);
         final timeDiff = DateTime.now().difference(lastUpdate).inSeconds;
         debugPrint('Time since teammate update: $timeDiff seconds');
 
-        if (timeDiff >= 15) {  
+        if (timeDiff >= 15) {
           debugPrint('Teammate data considered stale');
-          teammateEntry = null;  
+          teammateEntry = null;
           bothUsersPresent = false;
         }
       }
-
-      
       if (bothUsersPresent && _currentLocation != null) {
         _updateLocationInWaitingRoom();
       }
 
       if (mounted) {
         setState(() {
-          _hasTeammate = bothUsersPresent;  
+          _hasTeammate = bothUsersPresent;
           _teammateInfo = teammateEntry;
         });
       }
-
-      
       if (teammateEntry != null && _currentLocation != null) {
         final partnerLat = teammateEntry['current_latitude'] as num;
         final partnerLng = teammateEntry['current_longitude'] as num;
@@ -217,7 +203,6 @@ class _DuoWaitingRoomState extends State<DuoWaitingRoom> {
         }
       }
 
-      
       if (bothUsersPresent) {
         final allReady = rows.every((row) => row['is_ready'] == true);
         final allRecent = rows.every((row) {
@@ -225,13 +210,13 @@ class _DuoWaitingRoomState extends State<DuoWaitingRoom> {
           return DateTime.now().difference(updatedAt).inSeconds < 10;
         });
 
-        
+        // check if they are close
         final isCloseEnough = _teammateDistance != null && _teammateDistance! <= STARTING_PROXIMITY;
 
         if (allReady && allRecent && isCloseEnough) {
           await _navigateToActiveRun();
         } else if (allReady && allRecent && !isCloseEnough) {
-          
+          // If they're ready but too far apart, reset ready status
           await supabase
               .from('duo_waiting_room')
               .update({
@@ -287,8 +272,6 @@ class _DuoWaitingRoomState extends State<DuoWaitingRoom> {
 
   Future<void> _setReady() async {
     final user = Provider.of<UserModel>(context, listen: false);
-
-    
     if (_teammateDistance == null || _teammateDistance! > STARTING_PROXIMITY) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -376,7 +359,7 @@ class _DuoWaitingRoomState extends State<DuoWaitingRoom> {
                 const SizedBox(height: 20),
                 if (_hasTeammate) _buildTeammateInfo(),
                 const SizedBox(height: 40),
-                
+                // Build the appropriate widget based on conditions
                 _buildActionWidget(),
               ],
             ),
@@ -468,7 +451,7 @@ class _DuoWaitingRoomState extends State<DuoWaitingRoom> {
   Widget _buildTeammateInfo() {
     final teammateName = _teammateInfo?['users']?['name'] ?? 'Teammate';
     final distance = _teammateDistance?.toStringAsFixed(1) ?? '?';
-    final isInProximity = _teammateDistance != null && _teammateDistance! <= STARTING_PROXIMITY; 
+    final isInProximity = _teammateDistance != null && _teammateDistance! <= STARTING_PROXIMITY; // 100 meters threshold
     final isInRange = _teammateDistance != null && _teammateDistance! <= REQUIRED_PROXIMITY;
 
     return Card(

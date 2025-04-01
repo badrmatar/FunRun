@@ -20,7 +20,7 @@ abstract class AnalyticsClientBase {
   Future trackButtonPressed(String buttonName, [Map<String, Object>? data]);
   Future trackPermissionRequest(String permission, String status);
 
-  
+  // Added methods
   Future trackRunStarted(String journeyType, int challengeId);
   Future trackRunCompleted(String journeyType, double distanceKm, int durationSeconds);
   Future trackRunPaused(bool isAutoPaused);

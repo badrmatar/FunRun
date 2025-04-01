@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 class JourneyTypePage extends StatelessWidget {
@@ -6,14 +5,11 @@ class JourneyTypePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    
-    
     final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
     final challengeId = args['challenge_id'] as int;
-    
     final teamChallengeId = args.containsKey('team_challenge_id')
         ? args['team_challenge_id'] as int
-        : challengeId; 
+        : challengeId;
 
     return Scaffold(
       appBar: AppBar(
@@ -110,7 +106,6 @@ class JourneyTypePage extends StatelessWidget {
   }
 
   void _handleSoloRun(BuildContext context, int challengeId) {
-    
     Navigator.pushReplacementNamed(
       context,
       '/run_loading',
@@ -122,7 +117,6 @@ class JourneyTypePage extends StatelessWidget {
   }
 
   void _handleDuoRun(BuildContext context, int teamChallengeId) {
-    
     Navigator.pushReplacementNamed(
       context,
       '/duo_waiting_room',

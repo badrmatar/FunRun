@@ -14,9 +14,7 @@ import '../mixins/run_tracking_mixin.dart';
 import '../services/ios_location_bridge.dart';
 import '../constants/app_constants.dart';
 
-
 class DuoActiveRunPage extends StatefulWidget {
-  
   final int challengeId;
 
   const DuoActiveRunPage({Key? key, required this.challengeId})
@@ -28,18 +26,16 @@ class DuoActiveRunPage extends StatefulWidget {
 
 class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     with RunTrackingMixin {
-  
+
   Position? _partnerLocation;
-  double _partnerDistance = 0.0; 
-  double _gapDistance = 0.0; 
+  double _partnerDistance = 0.0;
+  double _gapDistance = 0.0;
   Timer? _partnerPollingTimer;
   StreamSubscription? _iosLocationSubscription;
   StreamSubscription<Position>? _customLocationSubscription;
 
-  
   Position? _lastPartnerLocation;
 
-  
   final List<LatLng> _partnerRoutePoints = [];
   Polyline _partnerRoutePolyline = const Polyline(
     polylineId: PolylineId('partner_route'),
@@ -48,24 +44,20 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     points: [],
   );
 
-  
   bool _hasEnded = false;
   bool _isRunning = true;
   bool _isInitializing = true;
 
-  
   final Map<CircleId, Circle> _circles = {};
 
   final supabase = Supabase.instance.client;
 
-  
   final IOSLocationBridge _iosBridge = IOSLocationBridge();
 
   @override
   void initState() {
     super.initState();
 
-    
     if (Platform.isIOS) {
       _initializeIOSLocationBridge();
     }
@@ -74,7 +66,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     _startPartnerPolling();
   }
 
-  
   Future<void> _initializeIOSLocationBridge() async {
     await _iosBridge.initialize();
     await _iosBridge.startBackgroundLocationUpdates();
@@ -84,19 +75,15 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
 
       print("iOS location update received: ${position.latitude}, ${position.longitude}, accuracy: ${position.accuracy}");
 
-      
       if (currentLocation == null || position.accuracy < currentLocation!.accuracy) {
         setState(() {
           currentLocation = position;
         });
 
-        
         _updateDuoWaitingRoom(position);
 
-        
         final currentPoint = LatLng(position.latitude, position.longitude);
 
-        
         setState(() {
           routePoints.add(currentPoint);
           routePolyline = Polyline(
@@ -107,7 +94,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
           );
         });
 
-        
         if (lastRecordedLocation != null) {
           final segmentDistance = calculateDistance(
             lastRecordedLocation!.latitude,
@@ -116,7 +102,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
             currentPoint.longitude,
           );
 
-          
           if (segmentDistance > 15.0) {
             print("iOS: Adding distance segment: $segmentDistance meters");
             setState(() {
@@ -125,11 +110,10 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
             });
           }
         } else {
-          
+
           lastRecordedLocation = currentPoint;
         }
 
-        
         mapController?.animateCamera(CameraUpdate.newLatLng(currentPoint));
       }
     }, onError: (error) {
@@ -137,14 +121,12 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     });
   }
 
-  
   void _setupCustomLocationHandling() {
     _customLocationSubscription = locationService.trackLocation().listen((position) {
       if (!isTracking || _hasEnded) return;
 
       final currentPoint = LatLng(position.latitude, position.longitude);
 
-      
       if (lastRecordedLocation != null) {
         final segmentDistance = calculateDistance(
           lastRecordedLocation!.latitude,
@@ -153,7 +135,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
           currentPoint.longitude,
         );
 
-        
         if (segmentDistance > 15) {
           setState(() {
             distanceCovered += segmentDistance;
@@ -161,13 +142,12 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
           });
         }
       } else {
-        
+
         setState(() {
           lastRecordedLocation = currentPoint;
         });
       }
 
-      
       setState(() {
         currentLocation = position;
         routePoints.add(currentPoint);
@@ -179,15 +159,12 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
         );
       });
 
-      
       _updateDuoWaitingRoom(position);
 
-      
       mapController?.animateCamera(CameraUpdate.newLatLng(currentPoint));
     });
   }
 
-  
   void _startPartnerPolling() {
     _partnerPollingTimer?.cancel();
     _partnerPollingTimer =
@@ -200,7 +177,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
         });
   }
 
-  
   String _getDistanceGroup(double distance) {
     if (distance < 100) return "<100";
     if (distance < 200) return "100+";
@@ -210,13 +186,12 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     return "300+";
   }
 
-  
   void _addPartnerCircle(Position position) {
     final circleId = CircleId('partner');
     final circle = Circle(
       circleId: circleId,
       center: LatLng(position.latitude, position.longitude),
-      radius: 15, 
+      radius: 15,
       fillColor: Colors.green.withOpacity(0.5),
       strokeColor: Colors.white,
       strokeWidth: 2,
@@ -225,7 +200,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     setState(() {
       _circles[circleId] = circle;
 
-      
       final partnerPoint = LatLng(position.latitude, position.longitude);
       if (_partnerRoutePoints.isEmpty || _partnerRoutePoints.last != partnerPoint) {
         _partnerRoutePoints.add(partnerPoint);
@@ -239,7 +213,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     });
   }
 
-  
   Future<void> _updateDuoWaitingRoom(Position position) async {
     if (_hasEnded) return;
 
@@ -261,7 +234,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     }
   }
 
-  
   Future<void> _pollPartnerStatus() async {
     if (currentLocation == null || !mounted) return;
     try {
@@ -276,7 +248,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
       if (results is List && results.isNotEmpty) {
         final data = results.first as Map<String, dynamic>;
 
-        
         if (data['has_ended'] == true) {
           await _endRunDueToPartner();
           return;
@@ -285,7 +256,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
         final partnerLat = data['current_latitude'] as num;
         final partnerLng = data['current_longitude'] as num;
 
-        
         final partnerPosition = Position(
           latitude: partnerLat.toDouble(),
           longitude: partnerLng.toDouble(),
@@ -300,7 +270,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
           headingAccuracy: 0.0,
         );
 
-        
         final gapDistance = Geolocator.distanceBetween(
           currentLocation!.latitude,
           currentLocation!.longitude,
@@ -308,12 +277,10 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
           partnerPosition.longitude,
         );
 
-        
         setState(() {
           _gapDistance = gapDistance;
         });
 
-        
         if (gapDistance > 300.0 && !_hasEnded) {
           await supabase.from('duo_waiting_room').update({
             'has_ended': true,
@@ -325,7 +292,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
           return;
         }
 
-        
         if (_lastPartnerLocation != null) {
           final segmentDistance = Geolocator.distanceBetween(
             _lastPartnerLocation!.latitude,
@@ -341,7 +307,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
         }
         _lastPartnerLocation = partnerPosition;
 
-        
         _addPartnerCircle(partnerPosition);
         setState(() {
           _partnerLocation = partnerPosition;
@@ -352,7 +317,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     }
   }
 
-  
   Future<void> _endRunDueToPartner() async {
     await _endRun(
       reason: 'partner_ended',
@@ -361,7 +325,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     );
   }
 
-  
   Future<void> _initializeRun() async {
     try {
       final initialPosition = await locationService.getCurrentLocation();
@@ -371,17 +334,13 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
           _isInitializing = false;
         });
 
-        
         _updateDuoWaitingRoom(initialPosition);
 
-        
         startRun(initialPosition);
 
-        
         _setupCustomLocationHandling();
       }
 
-      
       Timer(const Duration(seconds: 30), () {
         if (_isInitializing && mounted && currentLocation != null) {
           setState(() {
@@ -396,7 +355,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     }
   }
 
-  
   Future<void> _handleMaxDistanceExceeded() async {
     await _endRun(
       reason: 'max_distance_exceeded',
@@ -427,7 +385,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     }
   }
 
-  
   Future<void> _endRunManually() async {
     await _endRun(
       reason: 'manual',
@@ -436,7 +393,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     );
   }
 
-  
   Future<void> _endRun({
     required String reason,
     bool notifyPartner = false,
@@ -447,26 +403,22 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     final user = Provider.of<UserModel>(context, listen: false);
 
     try {
-      
+
       _hasEnded = true;
       isTracking = false;
 
-      
       runTimer?.cancel();
       locationSubscription?.cancel();
       _customLocationSubscription?.cancel();
       _partnerPollingTimer?.cancel();
 
-      
       if (Platform.isIOS) {
         _iosLocationSubscription?.cancel();
         await _iosBridge.stopBackgroundLocationUpdates();
       }
 
-      
       await _saveRunData();
 
-      
       final updatePromises = [
         supabase.from('user_contributions').update({
           'active': false,
@@ -487,7 +439,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
 
       await Future.wait(updatePromises);
 
-      
       if (mounted) {
         setState(() => _isRunning = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -509,7 +460,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     }
   }
 
-  
   Future<void> _saveRunData() async {
     try {
       final user = Provider.of<UserModel>(context, listen: false);
@@ -567,7 +517,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     }
   }
 
-  
   String _formatTime(int seconds) {
     final minutes = seconds ~/ 60;
     final remainingSeconds = seconds % 60;
@@ -583,7 +532,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     _customLocationSubscription?.cancel();
     _partnerPollingTimer?.cancel();
 
-    
     if (Platform.isIOS) {
       _iosLocationSubscription?.cancel();
       _iosBridge.dispose();
@@ -610,7 +558,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     );
   }
 
-  
   Widget _buildInitializingScreen() {
     return Scaffold(
       body: Container(
@@ -646,7 +593,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     );
   }
 
-  
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       title: const Text('Duo Active Run'),
@@ -679,7 +625,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     );
   }
 
-  
   Widget _buildMap() {
     return GoogleMap(
       initialCameraPosition: CameraPosition(
@@ -696,7 +641,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     );
   }
 
-  
   Widget _buildBottomStatsPanel() {
     final distanceKm = distanceCovered / 1000;
 
@@ -723,7 +667,7 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            
+
             if (autoPaused)
               Container(
                 margin: const EdgeInsets.only(bottom: 8),
@@ -741,7 +685,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
                 ),
               ),
 
-            
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
@@ -753,7 +696,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
 
             const SizedBox(height: 16),
 
-            
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -781,7 +723,6 @@ class _DuoActiveRunPageState extends State<DuoActiveRunPage>
     );
   }
 
-  
   Widget _buildStatItem(String label, String value) {
     return Column(
       mainAxisSize: MainAxisSize.min,

@@ -1,5 +1,5 @@
-import { serve } from 'https:
-import { createClient } from 'https:
+import { serve } from 'https://deno.land/std@0.175.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
 const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -25,7 +25,7 @@ serve(async (req: Request) => {
       distance_covered,
     } = body;
 
-    
+    // Step 1: Get active team
     console.log('Getting team membership for user:', user_id);
     const { data: teamMembership, error: teamError } = await supabase
       .from('team_memberships')
@@ -45,7 +45,7 @@ serve(async (req: Request) => {
     const team_id = teamMembership.team_id;
     console.log('Found team_id:', team_id);
 
-    
+    // Step 2: Get active challenge
     console.log('Getting active challenge for team:', team_id);
     const { data: activeChallenge, error: challengeError } = await supabase
       .from('team_challenges')
@@ -70,8 +70,6 @@ serve(async (req: Request) => {
 
     console.log('Found active challenge:', JSON.stringify(activeChallenge, null, 2));
 
-    
-
     const totalDistance = totalContributions.reduce((sum, contribution) =>
       sum + (contribution.distance_covered || 0), 0);
 
@@ -84,7 +82,7 @@ serve(async (req: Request) => {
     if (isCompleted) {
       console.log('Challenge completed! Updating status...');
 
-      
+      // Mark as completed
       const { error: updateError } = await supabase
         .from('team_challenges')
         .update({ iscompleted: true })
@@ -94,7 +92,7 @@ serve(async (req: Request) => {
         console.error('Error marking challenge as completed:', updateError);
       }
 
-      
+      // Update team streak
       console.log('Calling update_team_streak for team:', team_id);
       try {
         const streakUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/update_team_streak`;
@@ -123,7 +121,7 @@ serve(async (req: Request) => {
       }
     }
 
-    
+    // Return response
     return new Response(
       JSON.stringify({
         data: {

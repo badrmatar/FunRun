@@ -9,7 +9,6 @@ import 'package:http/http.dart' as http;
 class HomePage extends StatelessWidget {
   const HomePage({Key? key}) : super(key: key);
 
-  
   Future<Map<String, dynamic>> _getCombinedStats(int userId) async {
     final homeStats = await StatsService().getHomeStats(userId);
     final teamPoints = await StatsService().getTeamPointsForUser(userId);
@@ -17,7 +16,6 @@ class HomePage extends StatelessWidget {
     return homeStats;
   }
 
-  
   Future<int?> _getLeagueRoomId(int userId) async {
     final url =
         '${dotenv.env['SUPABASE_URL']}/functions/v1/get_active_league_room_id';
@@ -35,12 +33,10 @@ class HomePage extends StatelessWidget {
         return data['league_room_id'] as int?;
       }
     } catch (e) {
-      
     }
     return null;
   }
 
-  
   Future<bool> _logoutUser(int userId) async {
     final url = '${dotenv.env['SUPABASE_URL']}/functions/v1/user_logout';
     try {
@@ -58,7 +54,6 @@ class HomePage extends StatelessWidget {
     }
   }
 
-  
   Widget _buildTipCard({
     required IconData icon,
     required Color iconColor,
@@ -138,14 +133,14 @@ class HomePage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                
+                // Header (Welcome & Logout)
                 Padding(
                   padding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      
+                      // Wrap welcome text in Expanded to prevent overflow.
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -169,7 +164,7 @@ class HomePage extends StatelessWidget {
                           ],
                         ),
                       ),
-                      
+                      // Wrap logout button in Flexible so it can shrink if needed.
                       Flexible(
                         child: GestureDetector(
                           onTap: () async {
@@ -213,7 +208,7 @@ class HomePage extends StatelessWidget {
                     ],
                   ),
                 ),
-                
+                // Daily Streak Component
                 Padding(
                   padding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -270,7 +265,7 @@ class HomePage extends StatelessWidget {
                     ),
                   ),
                 ),
-                
+                // Team Stats Card (with total points in place of rank)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Container(
@@ -281,7 +276,7 @@ class HomePage extends StatelessWidget {
                     ),
                     child: Row(
                       children: [
-                        
+                        // Team avatar.
                         Container(
                           width: 40,
                           height: 40,
@@ -301,7 +296,7 @@ class HomePage extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        
+                        // Team name and total points.
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -327,7 +322,7 @@ class HomePage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-                
+                // Expanded Tips & Tricks Section.
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),

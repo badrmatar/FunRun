@@ -1,10 +1,5 @@
-
-
-
-
-
-import { serve } from 'https:
-import { createClient } from 'https:
+import { serve } from 'https://deno.land/std@0.131.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 console.log(`Function "register_user" is up and running!`);
 
@@ -116,4 +111,3 @@ serve(async (req) => {
     });
   }
 });
-

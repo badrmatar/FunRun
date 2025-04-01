@@ -1,10 +1,10 @@
-
+// GENERATED CODE - DO NOT MODIFY BY HAND
 
 part of 'team_challenge.dart';
 
-
-
-
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
 
 TeamChallenge _$TeamChallengeFromJson(Map<String, dynamic> json) =>
     TeamChallenge(

@@ -8,11 +8,11 @@ import '../models/user.dart';
 
 class AuthService {
   final String userLoginFunctionUrl =
-      'https:
+      'https://ywhjlgvtjywhacgqtzqh.supabase.co/functions/v1/user_login';
   final String userSignupFunctionUrl =
-      'https:
+      'https://ywhjlgvtjywhacgqtzqh.supabase.co/functions/v1/user_signup';
   final String userLogoutFunctionUrl =
-      'https:
+      'https://ywhjlgvtjywhacgqtzqh.supabase.co/functions/v1/user_logout';
   final String bearerToken = dotenv.env['BEARER_TOKEN']!;
 
   final storage = const FlutterSecureStorage();

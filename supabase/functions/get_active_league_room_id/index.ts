@@ -1,19 +1,16 @@
-import { serve } from 'https:
-import { createClient } from 'https:
+import { serve } from 'https://deno.land/std@0.131.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 console.log(`Function "get_active_league_room" is up and running!`);
 
 serve(async (req) => {
   try {
-    
     if (req.method !== 'POST') {
       console.log(`Received non-POST request: ${req.method}`);
       return new Response(JSON.stringify({ error: 'Method Not Allowed' }), {
         status: 405,
       });
     }
-
-    
     const bodyText = await req.text();
     if (bodyText.trim() === '') {
       return new Response(
@@ -33,21 +30,16 @@ serve(async (req) => {
         { status: 400 }
       );
     }
-
-    
     if (typeof userId !== 'number') {
       return new Response(
         JSON.stringify({ error: 'user_id must be a number.' }),
         { status: 400 }
       );
     }
-
-    
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    
     const { data: existingUser, error: userError } = await supabase
       .from('users')
       .select('user_id')
@@ -68,8 +60,6 @@ serve(async (req) => {
         { status: 404 }
       );
     }
-
-    
     const { data: waitingRoomData, error: waitingRoomError } = await supabase
       .from('waiting_rooms')
       .select(`
@@ -88,7 +78,6 @@ serve(async (req) => {
       .single();
 
     if (waitingRoomError?.code === 'PGRST116') {
-      
       return new Response(JSON.stringify({
         message: 'No active league room found.',
         league_room_id: null
@@ -101,15 +90,12 @@ serve(async (req) => {
       });
     }
 
-    
     if (waitingRoomData.league_rooms.ended_at !== null) {
       return new Response(JSON.stringify({
         message: 'No active league room found.',
         league_room_id: null
       }), { status: 200 });
     }
-
-    
     return new Response(JSON.stringify({
       message: 'Active league room found.',
       league_room_id: waitingRoomData.league_room_id,

@@ -8,44 +8,36 @@ enum LocationQuality { excellent, good, fair, poor, unusable }
 enum TrackingMode { standard, battery_saving, high_accuracy }
 
 class LocationService {
-  
   static final LocationService _instance = LocationService._internal();
   factory LocationService() => _instance;
   LocationService._internal();
 
-  
   final _locationController = StreamController<Position>.broadcast();
   final _qualityController = StreamController<LocationQuality>.broadcast();
   final _statusController = StreamController<String>.broadcast();
 
-  
   StreamSubscription<Position>? _positionSubscription;
   Position? _lastPosition;
   LocationQuality _currentQuality = LocationQuality.unusable;
-  TrackingMode _currentMode = TrackingMode.high_accuracy; 
+  TrackingMode _currentMode = TrackingMode.high_accuracy;
   bool _isTracking = false;
 
-  
   final Map<LocationQuality, double> _accuracyThresholds = {
-    LocationQuality.excellent: 10.0, 
-    LocationQuality.good: 20.0,      
-    LocationQuality.fair: 35.0,      
-    LocationQuality.poor: 50.0,      
-    
+    LocationQuality.excellent: 10.0,
+    LocationQuality.good: 20.0,
+    LocationQuality.fair: 35.0,
+    LocationQuality.poor: 50.0,
+
   };
 
-  
   KalmanFilter2D? _kalmanFilter;
 
-  
   int stillCounter = 0;
   final double pauseThreshold = 0.5;
   final double resumeThreshold = 1.0;
 
-  
   LocationSettings _getLocationSettings() {
-    
-    
+
     if (Platform.isIOS) {
       return AppleSettings(
         accuracy: LocationAccuracy.bestForNavigation,
@@ -65,7 +57,6 @@ class LocationService {
     }
   }
 
-  
   LocationQuality _assessLocationQuality(Position position) {
     final accuracy = position.accuracy;
 
@@ -82,7 +73,6 @@ class LocationService {
     }
   }
 
-  
   String getQualityDescription(LocationQuality quality) {
     switch (quality) {
       case LocationQuality.excellent:
@@ -98,7 +88,6 @@ class LocationService {
     }
   }
 
-  
   Color getQualityColor(LocationQuality quality) {
     switch (quality) {
       case LocationQuality.excellent:
@@ -114,21 +103,18 @@ class LocationService {
     }
   }
 
-  
   Stream<Position> get positionStream => _locationController.stream;
   Stream<LocationQuality> get qualityStream => _qualityController.stream;
   Stream<String> get statusStream => _statusController.stream;
 
-  
   LocationQuality get currentQuality => _currentQuality;
   Position? get lastPosition => _lastPosition;
   bool get isTracking => _isTracking;
 
-  
   void setTrackingMode(TrackingMode mode) {
     if (_currentMode != mode) {
       _currentMode = mode;
-      
+
       if (_isTracking) {
         _stopTracking();
         _startTracking();
@@ -136,14 +122,12 @@ class LocationService {
     }
   }
 
-  
   Position _filterPosition(Position position) {
     if (_currentMode != TrackingMode.high_accuracy || _kalmanFilter == null) {
       return position;
     }
 
-    
-    _kalmanFilter!.predict(0.1); 
+    _kalmanFilter!.predict(0.1);
     _kalmanFilter!.update(position.latitude, position.longitude);
 
     final smoothedPosition = Position(
@@ -162,7 +146,6 @@ class LocationService {
     return smoothedPosition;
   }
 
-  
   void _startTracking() {
     if (_isTracking) return;
 
@@ -173,17 +156,14 @@ class LocationService {
     _positionSubscription = Geolocator.getPositionStream(
         locationSettings: locationSettings
     ).listen((Position position) {
-      
+
       final quality = _assessLocationQuality(position);
 
-      
       final filteredPosition = _filterPosition(position);
       _lastPosition = filteredPosition;
 
-      
       _locationController.add(filteredPosition);
 
-      
       if (quality != _currentQuality) {
         _currentQuality = quality;
         _qualityController.add(quality);
@@ -200,7 +180,6 @@ class LocationService {
     _isTracking = true;
   }
 
-  
   void _stopTracking() {
     _positionSubscription?.cancel();
     _positionSubscription = null;
@@ -208,7 +187,6 @@ class LocationService {
     print('LocationService: Stopped position tracking');
   }
 
-  
   Future<void> startQualityMonitoring() async {
     if (_isTracking) {
       print('LocationService: Already tracking, not restarting');
@@ -223,25 +201,22 @@ class LocationService {
     }
   }
 
-  
   void stopQualityMonitoring() {
     _stopTracking();
   }
 
-  
   void initializeKalmanFilter(Position position) {
     _kalmanFilter = KalmanFilter2D(
       initialX: position.latitude,
       initialY: position.longitude,
-      
+
       processNoise: 1e-5,
-      
+
       measurementNoise: 15.0,
     );
     print('LocationService: Initialized Kalman filter with starting position');
   }
 
-  
   Future<bool> isAccuracyGoodForRun() async {
     if (_currentQuality == LocationQuality.unusable ||
         _currentQuality == LocationQuality.poor) {
@@ -250,7 +225,6 @@ class LocationService {
     return true;
   }
 
-  
   Future<bool> _checkAndRequestPermission() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
@@ -275,7 +249,6 @@ class LocationService {
     return true;
   }
 
-  
   Future<Position?> getCurrentLocation() async {
     try {
       final hasPermission = await _checkAndRequestPermission();
@@ -283,7 +256,6 @@ class LocationService {
 
       print('LocationService: Getting current location...');
 
-      
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.bestForNavigation,
         timeLimit: const Duration(seconds: 15),
@@ -291,11 +263,9 @@ class LocationService {
 
       print('LocationService: Got position with accuracy ${position.accuracy}m');
 
-      
       _lastPosition = position;
       _currentQuality = _assessLocationQuality(position);
 
-      
       _locationController.add(position);
       _qualityController.add(_currentQuality);
 
@@ -307,11 +277,9 @@ class LocationService {
     }
   }
 
-  
   Future<Position?> refreshCurrentLocation() async {
     try {
-      
-      
+
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.bestForNavigation,
         timeLimit: const Duration(seconds: 5),
@@ -319,23 +287,20 @@ class LocationService {
 
       print('LocationService: Refreshed position with accuracy ${position.accuracy}m');
 
-      
       _lastPosition = position;
       _currentQuality = _assessLocationQuality(position);
 
-      
       _locationController.add(position);
       _qualityController.add(_currentQuality);
 
       return position;
     } catch (e) {
-      
+
       print('LocationService: Refresh location attempt: $e');
       return null;
     }
   }
 
-  
   Stream<Position> trackLocation() {
     if (!_isTracking) {
       startQualityMonitoring();
@@ -343,7 +308,6 @@ class LocationService {
     return positionStream;
   }
 
-  
   void dispose() {
     _stopTracking();
     _locationController.close();

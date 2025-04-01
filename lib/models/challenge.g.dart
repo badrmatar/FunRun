@@ -1,10 +1,10 @@
-
+// GENERATED CODE - DO NOT MODIFY BY HAND
 
 part of 'challenge.dart';
 
-
-
-
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
 
 Challenge _$ChallengeFromJson(Map<String, dynamic> json) => Challenge(
       challengeId: (json['challenge_id'] as num).toInt(),

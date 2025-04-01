@@ -1,17 +1,17 @@
-import { serve } from 'https:
-import { createClient } from 'https:
+import { serve } from 'https://deno.land/std@0.131.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 console.log(`Function "user_logout" is up and running!`);
 
 serve(async (req) => {
   try {
-    
+    // Only allow POST requests
     if (req.method !== 'POST') {
       console.log(`Received non-POST request: ${req.method}`);
       return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { status: 405 });
     }
 
-    
+    // Read the raw body
     const bodyText = await req.text();
     console.log(`Raw request body: ${bodyText}`);
 
@@ -22,7 +22,7 @@ serve(async (req) => {
       });
     }
 
-    
+    // Parse JSON
     let userId: number;
     try {
       const parsedBody = JSON.parse(bodyText);
@@ -40,14 +40,6 @@ serve(async (req) => {
         status: 400,
       });
     }
-
-    
-    
-    
-    
-    
-
-    
 
     console.log(`User with ID ${userId} "logged out" (dummy).`);
     const successResponse = {

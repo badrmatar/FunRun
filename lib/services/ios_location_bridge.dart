@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 
-
 class IOSLocationBridge {
   static final IOSLocationBridge _instance = IOSLocationBridge._internal();
 
@@ -11,33 +10,25 @@ class IOSLocationBridge {
 
   IOSLocationBridge._internal();
 
-  
   final MethodChannel _channel = const MethodChannel('com.duorun.location/background');
 
-  
   final _locationController = StreamController<Position>.broadcast();
 
-  
   final _errorController = StreamController<String>.broadcast();
 
-  
   final _authStatusController = StreamController<String>.broadcast();
 
-  
   Stream<Position> get locationStream => _locationController.stream;
   Stream<String> get errorStream => _errorController.stream;
   Stream<String> get authStatusStream => _authStatusController.stream;
 
-  
+  //check bridge
   bool _isInitialized = false;
 
-  
   Future<void> initialize() async {
     if (!Platform.isIOS || _isInitialized) return;
 
     _isInitialized = true;
-
-    
     _channel.setMethodCallHandler((call) async {
       switch (call.method) {
         case 'locationUpdate':
@@ -68,8 +59,6 @@ class IOSLocationBridge {
       }
     });
   }
-
-  
   Future<bool> startBackgroundLocationUpdates() async {
     if (!Platform.isIOS) return false;
 
@@ -82,7 +71,6 @@ class IOSLocationBridge {
     }
   }
 
-  
   Future<bool> stopBackgroundLocationUpdates() async {
     if (!Platform.isIOS) return false;
 
@@ -95,7 +83,6 @@ class IOSLocationBridge {
     }
   }
 
-  
   Future<String> checkAuthorizationStatus() async {
     if (!Platform.isIOS) return 'notSupported';
 
@@ -108,7 +95,6 @@ class IOSLocationBridge {
     }
   }
 
-  
   void dispose() {
     if (Platform.isIOS) {
       stopBackgroundLocationUpdates();

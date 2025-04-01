@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import '../pages/run_map_view.dart';
 

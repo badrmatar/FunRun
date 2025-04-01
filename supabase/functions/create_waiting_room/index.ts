@@ -1,17 +1,14 @@
-import { serve } from 'https:
-import { createClient } from 'https:
+import { serve } from 'https://deno.land/std@0.131.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 console.log(`Function "create_waiting_room" is up and running!`);
 
 serve(async (req) => {
   try {
-    
     if (req.method !== 'POST') {
       console.log(`Received non-POST request: ${req.method}`);
       return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { status: 405 });
     }
-
-    
     const bodyText = await req.text();
     console.log(`Raw request body: ${bodyText}`);
 
@@ -22,8 +19,6 @@ serve(async (req) => {
         { status: 400 }
       );
     }
-
-    
     let userId: number;
     try {
       const parsedBody = JSON.parse(bodyText);
@@ -46,7 +41,6 @@ serve(async (req) => {
       );
     }
 
-    
     if (typeof userId !== 'number') {
       console.warn('Invalid data type for userId.');
       return new Response(
@@ -54,14 +48,11 @@ serve(async (req) => {
         { status: 400 }
       );
     }
-
-    
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
     console.log('Supabase client initialized.');
 
-    
     const { data: existingUser, error: userError } = await supabase
       .from('users')
       .select('user_id')
@@ -86,7 +77,6 @@ serve(async (req) => {
       );
     }
 
-    
     const { data: existingWaitingRoom, error: checkError } = await supabase
       .from('waiting_rooms')
       .select('waiting_room_id')
@@ -112,7 +102,7 @@ serve(async (req) => {
       );
     }
 
-    
+    //   new waiting room
     const { data: newWaitingRoom, error: insertError } = await supabase
       .from('waiting_rooms')
       .insert([
@@ -150,14 +140,12 @@ serve(async (req) => {
   } catch (error) {
     console.error('Unexpected error:', error);
 
-    
+
     const environment = Deno.env.get('ENVIRONMENT') || 'production';
     const isDevelopment = environment === 'development';
 
-    
     let errorMessage = 'Internal Server Error';
     if (isDevelopment) {
-      
       const errorDetails = error instanceof Error ? error.message : String(error);
       errorMessage = `Internal Server Error: ${errorDetails}`;
     }

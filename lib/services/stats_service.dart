@@ -8,8 +8,6 @@ class StatsService {
 
   Future<Map<String, dynamic>> getHomeStats(int userId) async {
     final DateTime now = DateTime.now().toUtc();
-
-    
     final Map<String, dynamic> stats = {
       'userName': 'Runner',
       'level': 1,
@@ -27,7 +25,6 @@ class StatsService {
     };
 
     try {
-      
       final userResponse = await supabase
           .from('users')
           .select('name')
@@ -37,7 +34,6 @@ class StatsService {
         stats['userName'] = userResponse['name'] ?? 'Runner';
       }
 
-      
       final membershipResponse = await supabase
           .from('team_memberships')
           .select('team_id')
@@ -48,7 +44,7 @@ class StatsService {
       if (membershipResponse != null) {
         final teamId = membershipResponse['team_id'];
 
-        
+        // get team info
         final teamResponse = await supabase
             .from('teams')
             .select('team_name, current_streak, streak_bonus_points, league_room_id')
@@ -61,8 +57,6 @@ class StatsService {
           stats['leagueRoomId'] = teamResponse['league_room_id'];
         }
 
-        
-        
         final activeChallengeResponse = await supabase
             .from('team_challenges')
             .select('''
@@ -82,7 +76,6 @@ class StatsService {
         if (activeChallengeResponse != null) {
           final challengeData = activeChallengeResponse['challenges'];
           if (challengeData != null) {
-            
             final String startTimeStr = challengeData['start_time'];
             final int? duration = challengeData['duration'] as int?;
 
@@ -99,23 +92,19 @@ class StatsService {
                 hours > 0 ? '${hours}h ${minutes}m' : '${minutes}m';
               }
             }
-
-            
             final double totalDistance = (challengeData['length'] ?? 0).toDouble();
             stats['challengeTotalDistance'] = totalDistance;
 
-            
             final List<dynamic> contributions =
                 activeChallengeResponse['user_contributions'] ?? [];
             double totalDistanceCovered = 0.0;
             for (var contrib in contributions) {
               totalDistanceCovered += (contrib['distance_covered'] ?? 0).toDouble();
             }
-            
             final double distanceKm = totalDistanceCovered / 1000.0;
             stats['challengeDistanceCompleted'] = distanceKm;
 
-            
+            // Compute progress percent
             if (totalDistance > 0) {
               stats['challengeProgressPercent'] =
                   ((distanceKm / totalDistance) * 100).toInt();
@@ -123,8 +112,6 @@ class StatsService {
           }
         }
 
-        
-        
         final activeMembersResponse = await supabase
             .from('team_memberships')
             .select('user_id')
@@ -145,12 +132,10 @@ class StatsService {
           for (var contrib in contributionsResponse) {
             totalTeamDistance += (contrib['distance_covered'] as num).toDouble();
           }
-          
+
           stats['distanceSinceLeagueStarted'] = totalTeamDistance / 1000.0;
         }
       }
-
-      
       final startOfDay = DateTime.utc(now.year, now.month, now.day);
       final endOfDay = startOfDay.add(const Duration(days: 1));
       final personalResponse = await supabase

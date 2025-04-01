@@ -1,5 +1,4 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
@@ -22,8 +21,9 @@ import 'package:year4_project/pages/duo_waiting_room_page.dart';
 import 'package:year4_project/services/team_service.dart';
 import 'package:year4_project/pages/history_page.dart';
 import 'package:year4_project/analytics_route_observer.dart';
-// Import Smartlook
 import 'package:flutter_smartlook/flutter_smartlook.dart';
+
+
 
 Future<void> initSupabase() async {
   await Supabase.initialize(
@@ -34,7 +34,6 @@ Future<void> initSupabase() async {
 
 Future<void> requestLocationPermission() async {
   try {
-    // First, check if location services are enabled.
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       print('Location services disabled. Cannot request permission.');
@@ -65,7 +64,7 @@ Future<void> requestLocationPermission() async {
       }
     }
 
-    // Test location access.
+    //  loc access.
     try {
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
@@ -83,16 +82,12 @@ Future<void> requestLocationPermission() async {
 
 Future<void> initPosthog() async {
   try {
-    // Create a configuration object
-    final config = PostHogConfig('phc_uiuWH9NvkviwjtUsHRwkc9qgXvsWwlobSFgpbe9lRnF') // Replace with your actual API key
-      ..debug = true // Set to false in production
+    final config = PostHogConfig('phc_uiuWH9NvkviwjtUsHRwkc9qgXvsWwlobSFgpbe9lRnF') //old key
+      ..debug = true 
       ..captureApplicationLifecycleEvents = true
-      ..host = 'https://app.posthog.com'; // Or 'https://eu.i.posthog.com' for EU region
+      ..host = 'https://app.posthog.com'; 
 
-    // Initialize PostHog with the config
     await Posthog().setup(config);
-
-    // Log a test event to verify setup
     await Posthog().capture(
       eventName: 'app_initialized',
       properties: {
@@ -112,17 +107,12 @@ void main() async {
   await dotenv.load();
   await initSupabase();
   await initPosthog();
-
-  // Request location permissions early.
   await requestLocationPermission();
 
   final authService = AuthService();
   final isAuthenticated = await authService.checkAuthStatus();
 
-  // Create initial UserModel.
   UserModel initialUserModel = UserModel(id: 0, email: '', name: '');
-
-  // If authenticated, restore user session.
   if (isAuthenticated) {
     final userData = await authService.restoreUserSession();
     if (userData != null) {
@@ -131,8 +121,6 @@ void main() async {
         email: userData['email'],
         name: userData['name'],
       );
-
-      // Identify the user in PostHog
       await AnalyticsService().client.identifyUser(
         userId: userData['id'].toString(),
         email: userData['email'],
@@ -168,7 +156,7 @@ class _MyAppState extends State<MyApp> {
     super.initState();
     // Initialize Smartlook.
     smartlook.start();
-    smartlook.preferences.setProjectKey('5e6af6d7c885ec62a1814ea8ed55fcafc2fa91d6'); // Replace with your actual project key.
+    smartlook.preferences.setProjectKey('5e6af6d7c885ec62a1814ea8ed55fcafc2fa91d6'); //old key
   }
 
   @override
